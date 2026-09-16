@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { 
+  User,
+  GraduationCap,
   Building2, 
   MapPin, 
   ShieldCheck, 
@@ -42,6 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { 
     currentUser, 
     isAuthenticated, 
+    isProductionMode,
     switchRole, 
     loginUser, 
     signOutUser, 
@@ -138,39 +141,94 @@ export const Navbar: React.FC<NavbarProps> = ({
             {t('problemExplorer')}
           </button>
           
-          <div className="h-4 w-px bg-neutral-200 mx-1"></div>
+          {/* Demo Mode: Actor Persona Switcher */}
+          {!isProductionMode && (
+            <>
+              <div className="h-4 w-px bg-neutral-200 mx-1"></div>
+              <button
+                onClick={() => { switchRole('citizen'); onNavigate('citizen'); }}
+                className={`px-2.5 py-1.5 rounded-lg transition text-xs font-semibold ${currentView === 'citizen' ? 'text-blue-700 bg-blue-50' : 'text-neutral-600 hover:bg-neutral-50'}`}
+              >
+                {t('citizen')}
+              </button>
+              <button
+                onClick={() => { switchRole('government_official'); onNavigate('government'); }}
+                className={`px-2.5 py-1.5 rounded-lg transition text-xs font-semibold ${currentView === 'government' ? 'text-purple-700 bg-purple-50' : 'text-neutral-600 hover:bg-neutral-50'}`}
+              >
+                {t('government')}
+              </button>
+              <button
+                onClick={() => { switchRole('ngo'); onNavigate('community'); }}
+                className={`px-2.5 py-1.5 rounded-lg transition text-xs font-semibold ${currentView === 'community' ? 'text-emerald-700 bg-emerald-50' : 'text-neutral-600 hover:bg-neutral-50'}`}
+              >
+                {t('community')}
+              </button>
+              <button
+                onClick={() => { switchRole('student'); onNavigate('innovation'); }}
+                className={`px-2.5 py-1.5 rounded-lg transition text-xs font-semibold ${currentView === 'innovation' ? 'text-amber-700 bg-amber-50' : 'text-neutral-600 hover:bg-neutral-50'}`}
+              >
+                {t('innovation')}
+              </button>
+              <button
+                onClick={() => { switchRole('admin'); onNavigate('admin'); }}
+                className={`px-2.5 py-1.5 rounded-lg transition text-xs font-semibold ${currentView === 'admin' ? 'text-neutral-900 bg-neutral-200' : 'text-neutral-600 hover:bg-neutral-50'}`}
+              >
+                {t('adminGis')}
+              </button>
+            </>
+          )}
 
-          {/* Actor Portals */}
-          <button
-            onClick={() => { switchRole('citizen'); onNavigate('citizen'); }}
-            className={`px-2.5 py-1.5 rounded-lg transition text-xs font-semibold ${currentView === 'citizen' ? 'text-blue-700 bg-blue-50' : 'text-neutral-600 hover:bg-neutral-50'}`}
-          >
-            {t('citizen')}
-          </button>
-          <button
-            onClick={() => { switchRole('government_official'); onNavigate('government'); }}
-            className={`px-2.5 py-1.5 rounded-lg transition text-xs font-semibold ${currentView === 'government' ? 'text-purple-700 bg-purple-50' : 'text-neutral-600 hover:bg-neutral-50'}`}
-          >
-            {t('government')}
-          </button>
-          <button
-            onClick={() => { switchRole('ngo'); onNavigate('community'); }}
-            className={`px-2.5 py-1.5 rounded-lg transition text-xs font-semibold ${currentView === 'community' ? 'text-emerald-700 bg-emerald-50' : 'text-neutral-600 hover:bg-neutral-50'}`}
-          >
-            {t('community')}
-          </button>
-          <button
-            onClick={() => { switchRole('student'); onNavigate('innovation'); }}
-            className={`px-2.5 py-1.5 rounded-lg transition text-xs font-semibold ${currentView === 'innovation' ? 'text-amber-700 bg-amber-50' : 'text-neutral-600 hover:bg-neutral-50'}`}
-          >
-            {t('innovation')}
-          </button>
-          <button
-            onClick={() => { switchRole('admin'); onNavigate('admin'); }}
-            className={`px-2.5 py-1.5 rounded-lg transition text-xs font-semibold ${currentView === 'admin' ? 'text-neutral-900 bg-neutral-200' : 'text-neutral-600 hover:bg-neutral-50'}`}
-          >
-            {t('adminGis')}
-          </button>
+          {/* Production Mode: Authentic User Portal Link (Strictly visible only if genuinely signed in) */}
+          {isProductionMode && isAuthenticated && currentUser.uid !== 'guest-cit-001' && (
+            <>
+              <div className="h-4 w-px bg-neutral-200 mx-1"></div>
+              {currentUser.role === 'citizen' && (
+                <button
+                  onClick={() => onNavigate('citizen')}
+                  className={`px-3 py-1.5 rounded-lg transition text-xs font-bold flex items-center gap-1.5 ${currentView === 'citizen' ? 'text-blue-800 bg-blue-50 border border-blue-200 shadow-xs' : 'text-neutral-700 hover:bg-neutral-100'}`}
+                >
+                  <User className="w-3.5 h-3.5 text-blue-600" />
+                  <span>My Grievances</span>
+                </button>
+              )}
+              {['government_official', 'supervisor', 'department_head', 'district_authority', 'state_authority'].includes(currentUser.role) && (
+                <button
+                  onClick={() => onNavigate('government')}
+                  className={`px-3 py-1.5 rounded-lg transition text-xs font-bold flex items-center gap-1.5 ${currentView === 'government' ? 'text-purple-800 bg-purple-50 border border-purple-200 shadow-xs' : 'text-neutral-700 hover:bg-neutral-100'}`}
+                >
+                  <Building2 className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Official Portal</span>
+                </button>
+              )}
+              {['ngo', 'volunteer'].includes(currentUser.role) && (
+                <button
+                  onClick={() => onNavigate('community')}
+                  className={`px-3 py-1.5 rounded-lg transition text-xs font-bold flex items-center gap-1.5 ${currentView === 'community' ? 'text-emerald-800 bg-emerald-50 border border-emerald-200 shadow-xs' : 'text-neutral-700 hover:bg-neutral-100'}`}
+                >
+                  <Users className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Community Portal</span>
+                </button>
+              )}
+              {['student', 'innovator'].includes(currentUser.role) && (
+                <button
+                  onClick={() => onNavigate('innovation')}
+                  className={`px-3 py-1.5 rounded-lg transition text-xs font-bold flex items-center gap-1.5 ${currentView === 'innovation' ? 'text-amber-800 bg-amber-50 border border-amber-200 shadow-xs' : 'text-neutral-700 hover:bg-neutral-100'}`}
+                >
+                  <GraduationCap className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Innovation Hub</span>
+                </button>
+              )}
+              {currentUser.role === 'admin' && (
+                <button
+                  onClick={() => onNavigate('admin')}
+                  className={`px-3 py-1.5 rounded-lg transition text-xs font-bold flex items-center gap-1.5 ${currentView === 'admin' ? 'text-neutral-900 bg-neutral-200 border border-neutral-300 shadow-xs' : 'text-neutral-700 hover:bg-neutral-100'}`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-neutral-800" />
+                  <span>Admin & GIS</span>
+                </button>
+              )}
+            </>
+          )}
         </nav>
 
         {/* Right Section: Actions, Language Selector, Quick Demo Login, Sign In / Profile */}

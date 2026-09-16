@@ -27,6 +27,8 @@ import { auth, signOut as firebaseSignOut } from '../services/firebase';
 export interface CivicContextType {
   currentUser: UserProfile;
   isAuthenticated: boolean;
+  isProductionMode: boolean;
+  setProductionMode: (isProd: boolean) => void;
   switchRole: (role: UserRole) => void;
   loginUser: (profile: UserProfile) => void;
   signOutUser: () => Promise<void>;
@@ -182,9 +184,30 @@ export const ROLE_PROFILES: Record<UserRole, UserProfile> = {
   }
 };
 
+export const isMockDemoUser = (profile?: UserProfile | null): boolean => {
+  if (!profile) return false;
+  if (profile.isDemo) return true;
+  const uid = profile.uid || '';
+  return (
+    uid.startsWith('cit-verified') ||
+    uid.startsWith('gov-') ||
+    uid.startsWith('org-ngo') ||
+    uid.startsWith('vol-user') ||
+    uid.startsWith('stu-user') ||
+    uid.startsWith('inn-user') ||
+    uid.startsWith('adm-sys')
+  );
+};
+
 export const CivicProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Production mode: true when demo data is purged, showing only the real web application
+  const [isProductionMode, setIsProductionModeState] = useState<boolean>(() => {
+    return localStorage.getItem('civicsync_production_mode') === 'true';
+  });
+
   // Current user & authentication state
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
+    const isProd = localStorage.getItem('civicsync_production_mode') === 'true';
     const savedAuth = localStorage.getItem('civicsync_authenticated');
     if (savedAuth === 'false') {
       return GUEST_USER;
@@ -192,10 +215,19 @@ export const CivicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const savedCustom = localStorage.getItem('civicsync_user_profile');
     if (savedCustom) {
       try {
-        return JSON.parse(savedCustom);
+        const parsed = JSON.parse(savedCustom);
+        // In production mode, reject any fake demo login personas
+        if (isProd && isMockDemoUser(parsed)) {
+          return GUEST_USER;
+        }
+        return parsed;
       } catch (e) {
         console.error('Failed to parse saved user profile:', e);
       }
+    }
+    // In production mode, do not auto-login to mock demo profiles
+    if (isProd) {
+      return GUEST_USER;
     }
     const savedRole = localStorage.getItem('civicsync_user_role') as UserRole;
     if (savedRole && ROLE_PROFILES[savedRole]) {
@@ -209,8 +241,36 @@ export const CivicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    const isProd = localStorage.getItem('civicsync_production_mode') === 'true';
+    const savedCustom = localStorage.getItem('civicsync_user_profile');
+    if (isProd) {
+      if (savedCustom) {
+        try {
+          const parsed = JSON.parse(savedCustom);
+          if (isMockDemoUser(parsed)) return false;
+          return localStorage.getItem('civicsync_authenticated') === 'true';
+        } catch {
+          return false;
+        }
+      }
+      return false;
+    }
     return localStorage.getItem('civicsync_authenticated') === 'true';
   });
+
+  const setProductionMode = (isProd: boolean) => {
+    setIsProductionModeState(isProd);
+    localStorage.setItem('civicsync_production_mode', isProd ? 'true' : 'false');
+    if (isProd) {
+      if (isMockDemoUser(currentUser)) {
+        setCurrentUser(GUEST_USER);
+        setIsAuthenticated(false);
+        localStorage.removeItem('civicsync_user_profile');
+        localStorage.removeItem('civicsync_user_role');
+        localStorage.setItem('civicsync_authenticated', 'false');
+      }
+    }
+  };
 
   // Country focus strictly on India
   const [selectedCountryId, setSelectedCountryIdState] = useState<string>('IN');
@@ -250,13 +310,21 @@ export const CivicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [complaints]);
 
   const [communityOpportunities, setCommunityOpportunities] = useState<CommunityOpportunity[]>(() => {
+    const isProd = localStorage.getItem('civicsync_production_mode') === 'true';
     const saved = localStorage.getItem('civicsync_opportunities');
-    return saved ? JSON.parse(saved) : INITIAL_COMMUNITY_OPPORTUNITIES;
+    if (saved) {
+      try { return JSON.parse(saved); } catch { return []; }
+    }
+    return isProd ? [] : INITIAL_COMMUNITY_OPPORTUNITIES;
   });
 
   const [innovationChallenges, setInnovationChallenges] = useState<InnovationChallenge[]>(() => {
+    const isProd = localStorage.getItem('civicsync_production_mode') === 'true';
     const saved = localStorage.getItem('civicsync_challenges');
-    return saved ? JSON.parse(saved) : INITIAL_INNOVATION_CHALLENGES;
+    if (saved) {
+      try { return JSON.parse(saved); } catch { return []; }
+    }
+    return isProd ? [] : INITIAL_INNOVATION_CHALLENGES;
   });
 
   const [innovationSolutions, setInnovationSolutions] = useState<InnovationSolution[]>(() => {
@@ -272,8 +340,12 @@ export const CivicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   const [auditEvents, setAuditEvents] = useState<ComplaintEvent[]>(() => {
+    const isProd = localStorage.getItem('civicsync_production_mode') === 'true';
     const saved = localStorage.getItem('civicsync_audit_events');
-    return saved ? JSON.parse(saved) : INITIAL_AUDIT_EVENTS;
+    if (saved) {
+      try { return JSON.parse(saved); } catch { return []; }
+    }
+    return isProd ? [] : INITIAL_AUDIT_EVENTS;
   });
 
   const [gisWards, setGisWards] = useState<GISWardBoundary[]>(INITIAL_PUBLISHED_WARDS);
@@ -300,8 +372,12 @@ export const CivicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('civicsync_audit_events', JSON.stringify(auditEvents));
   }, [auditEvents]);
 
-  // Role switching
+  // Role switching - Disabled in production mode
   const switchRole = (role: UserRole) => {
+    if (isProductionMode) {
+      console.warn('Role switching is disabled in production mode. Please log in with authentic credentials.');
+      return;
+    }
     const targetProfile = ROLE_PROFILES[role] || ROLE_PROFILES.citizen;
     setCurrentUser(targetProfile);
     setIsAuthenticated(true);
@@ -686,6 +762,11 @@ export const CivicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const removeAllDemoData = () => {
+    // 1. Switch platform strictly to production mode
+    setIsProductionModeState(true);
+    localStorage.setItem('civicsync_production_mode', 'true');
+
+    // 2. Wipe all demo complaints, community drives, university challenges, solutions, and audit logs
     setComplaints([]);
     setCommunityOpportunities([]);
     setInnovationChallenges([]);
@@ -696,11 +777,23 @@ export const CivicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.removeItem('civicsync_challenges');
     localStorage.removeItem('civicsync_solutions');
     localStorage.removeItem('civicsync_audit_events');
+
+    // 3. Purge mock/fake login personas if active
+    if (isMockDemoUser(currentUser)) {
+      setCurrentUser(GUEST_USER);
+      setIsAuthenticated(false);
+      localStorage.removeItem('civicsync_user_profile');
+      localStorage.removeItem('civicsync_user_role');
+      localStorage.setItem('civicsync_authenticated', 'false');
+    }
   };
 
   const reseedAllDemoData = () => {
-    // Disabled: Demo data removed per user specification
-    console.info('Demo data re-seeding disabled.');
+    setIsProductionModeState(false);
+    localStorage.setItem('civicsync_production_mode', 'false');
+    setCommunityOpportunities(INITIAL_COMMUNITY_OPPORTUNITIES);
+    setInnovationChallenges(INITIAL_INNOVATION_CHALLENGES);
+    setAuditEvents(INITIAL_AUDIT_EVENTS);
   };
 
   const resetDemoData = removeAllDemoData;
@@ -709,6 +802,8 @@ export const CivicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <CivicContext.Provider value={{
       currentUser,
       isAuthenticated,
+      isProductionMode,
+      setProductionMode,
       switchRole,
       loginUser,
       signOutUser,

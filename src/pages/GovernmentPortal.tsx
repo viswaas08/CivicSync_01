@@ -23,16 +23,34 @@ interface GovernmentPortalProps {
 }
 
 export const GovernmentPortal: React.FC<GovernmentPortalProps> = ({ onSelectComplaint }) => {
-  const { currentUser, setDemoRole, complaints, updateComplaintStatus } = useCivic();
+  const { currentUser, isProductionMode, switchRole, complaints, updateComplaintStatus } = useCivic();
 
   const [slaFilter, setSlaFilter] = useState<'ALL' | 'BREACHED' | 'URGENT' | 'IN_PROGRESS'>('ALL');
   const [departmentFilter, setDepartmentFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Role Switcher helper
+  // Role Switcher helper (Active only in Demo Mode)
   const handleSwitchGovRole = (role: UserRole) => {
-    setDemoRole(role);
+    if (!isProductionMode) {
+      switchRole(role);
+    }
   };
+
+  const isAuthorizedOfficial = ['government_official', 'supervisor', 'department_head', 'district_authority', 'state_authority', 'admin'].includes(currentUser.role) && currentUser.uid !== 'guest-cit-001';
+
+  if (isProductionMode && !isAuthorizedOfficial) {
+    return (
+      <div className="max-w-2xl mx-auto my-16 p-8 bg-white border border-neutral-200 rounded-2xl shadow-sm text-center space-y-4">
+        <div className="w-16 h-16 rounded-2xl bg-purple-100 text-purple-800 flex items-center justify-center mx-auto">
+          <Building2 className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-neutral-900">Official Municipal Portal Access Restricted</h2>
+        <p className="text-sm text-neutral-600 max-w-md mx-auto">
+          This portal is reserved strictly for gazetted municipal field engineers, zonal supervisors, and department heads. Please sign in with your verified official credentials to access municipal SLA queues and work orders.
+        </p>
+      </div>
+    );
+  }
 
   const filteredComplaints = complaints.filter(c => {
     const sla = checkSLAStatus(c.sla);
@@ -81,32 +99,34 @@ export const GovernmentPortal: React.FC<GovernmentPortalProps> = ({ onSelectComp
           </div>
         </div>
 
-        {/* Role Testing Persona Switcher */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 text-xs">
-          <span className="text-neutral-500 font-semibold uppercase tracking-wider text-[11px]">
-            Simulate Persona:
-          </span>
-          <div className="bg-neutral-100 p-1 rounded-xl flex items-center gap-1">
-            <button
-              onClick={() => handleSwitchGovRole('government_official')}
-              className={`px-2.5 py-1 rounded-lg transition ${currentUser.role === 'government_official' ? 'bg-white shadow-xs font-bold text-neutral-900' : 'text-neutral-600 hover:text-neutral-900'}`}
-            >
-              Field Officer (AE)
-            </button>
-            <button
-              onClick={() => handleSwitchGovRole('supervisor')}
-              className={`px-2.5 py-1 rounded-lg transition ${currentUser.role === 'supervisor' ? 'bg-white shadow-xs font-bold text-neutral-900' : 'text-neutral-600 hover:text-neutral-900'}`}
-            >
-              Zonal Supervisor
-            </button>
-            <button
-              onClick={() => handleSwitchGovRole('department_head')}
-              className={`px-2.5 py-1 rounded-lg transition ${currentUser.role === 'department_head' ? 'bg-white shadow-xs font-bold text-neutral-900' : 'text-neutral-600 hover:text-neutral-900'}`}
-            >
-              Dept Head (EE)
-            </button>
+        {/* Role Testing Persona Switcher - Only visible in Demo Mode */}
+        {!isProductionMode && (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 text-xs">
+            <span className="text-neutral-500 font-semibold uppercase tracking-wider text-[11px]">
+              Simulate Persona:
+            </span>
+            <div className="bg-neutral-100 p-1 rounded-xl flex items-center gap-1">
+              <button
+                onClick={() => handleSwitchGovRole('government_official')}
+                className={`px-2.5 py-1 rounded-lg transition ${currentUser.role === 'government_official' ? 'bg-white shadow-xs font-bold text-neutral-900' : 'text-neutral-600 hover:text-neutral-900'}`}
+              >
+                Field Officer (AE)
+              </button>
+              <button
+                onClick={() => handleSwitchGovRole('supervisor')}
+                className={`px-2.5 py-1 rounded-lg transition ${currentUser.role === 'supervisor' ? 'bg-white shadow-xs font-bold text-neutral-900' : 'text-neutral-600 hover:text-neutral-900'}`}
+              >
+                Zonal Supervisor
+              </button>
+              <button
+                onClick={() => handleSwitchGovRole('department_head')}
+                className={`px-2.5 py-1 rounded-lg transition ${currentUser.role === 'department_head' ? 'bg-white shadow-xs font-bold text-neutral-900' : 'text-neutral-600 hover:text-neutral-900'}`}
+              >
+                Dept Head (EE)
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* SLA Triage Cards */}

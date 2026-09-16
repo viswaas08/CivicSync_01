@@ -26,8 +26,22 @@ export const CitizenDashboard: React.FC<CitizenDashboardProps> = ({
   onSelectComplaint,
   onOpenReportModal
 }) => {
-  const { currentUser, complaints } = useCivic();
+  const { currentUser, isAuthenticated, isProductionMode, complaints } = useCivic();
   const [activeTab, setActiveTab] = useState<'my_reports' | 'impact' | 'verification' | 'supported'>('my_reports');
+
+  if (isProductionMode && (!isAuthenticated || currentUser.uid === 'guest-cit-001')) {
+    return (
+      <div className="max-w-2xl mx-auto my-16 p-8 bg-white border border-neutral-200 rounded-2xl shadow-sm text-center space-y-4">
+        <div className="w-16 h-16 rounded-2xl bg-neutral-100 text-neutral-800 flex items-center justify-center mx-auto">
+          <User className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-neutral-900">Citizen Sign-In Required</h2>
+        <p className="text-sm text-neutral-600 max-w-md mx-auto">
+          Please sign in with Google or your verified mobile number to view your reported grievances, track municipal SLA timelines, and confirm problem resolutions.
+        </p>
+      </div>
+    );
+  }
 
   const myReports = complaints.filter(c => c.citizenId === currentUser.uid);
   const pendingVerification = complaints.filter(c => c.citizenId === currentUser.uid && c.status === 'RESOLVED');
@@ -50,7 +64,7 @@ export const CitizenDashboard: React.FC<CitizenDashboardProps> = ({
               </span>
             </div>
             <p className="text-xs text-neutral-500 mt-0.5">
-              {currentUser.email} • Mobile: {currentUser.phone || '+91 98421 88402'}
+              {currentUser.email} {currentUser.phone ? `• Mobile: ${currentUser.phone}` : ''}
             </p>
             <span className="inline-block text-[11px] text-neutral-400 mt-1">
               Public Progress. Private Identity — PII never exposed on open boards.

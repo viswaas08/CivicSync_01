@@ -22,10 +22,13 @@ import { AdminGovernmentManagement } from '../components/AdminGovernmentManageme
 export const AdminPortal: React.FC = () => {
   const { 
     currentUser, 
+    isProductionMode,
+    setProductionMode,
     gisWards, 
     gisCoverage, 
     rollbackGisVersion, 
     removeAllDemoData,
+    reseedAllDemoData,
     complaints,
     communityOpportunities,
     innovationChallenges,
@@ -46,8 +49,8 @@ export const AdminPortal: React.FC = () => {
   const handleRemoveAll = () => {
     removeAllDemoData();
     setShowClearConfirm(false);
-    setGisFeedback('System records cleared across Citizen, Government, Community, and Innovation panels.');
-    setTimeout(() => setGisFeedback(null), 6000);
+    setGisFeedback('Production Mode Activated: All demo records, fake login personas, and demo persona switchers have been completely removed. Only authentic production web app is active.');
+    setTimeout(() => setGisFeedback(null), 8000);
   };
 
   const demoComplaintsCount = complaints.length;
@@ -113,7 +116,7 @@ export const AdminPortal: React.FC = () => {
           }`}
         >
           <Database className="w-4 h-4" />
-          <span>Data Storage & Purge</span>
+          <span>{isProductionMode ? 'Live Production State' : 'Data Storage & Demo Manager'}</span>
         </button>
 
         <button
@@ -233,6 +236,53 @@ export const AdminPortal: React.FC = () => {
       {activeTab === 'demo_data' && (
         <div className="space-y-6">
           <div className="p-6 bg-white border border-neutral-200 rounded-2xl shadow-xs space-y-6">
+            {/* System Mode Status Banner */}
+            {isProductionMode ? (
+              <div className="p-4 rounded-2xl border border-emerald-300 bg-emerald-50/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-extrabold text-sm text-emerald-950">System Mode: Live Production</h4>
+                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">Production Active</span>
+                    </div>
+                    <p className="text-xs text-emerald-800 mt-0.5">
+                      All demo data and fake login personas are removed. Navbar demo persona switchers are hidden. Platform is running in pure production mode.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    reseedAllDemoData();
+                    setGisFeedback('Demo evaluation mode re-enabled for testing.');
+                    setTimeout(() => setGisFeedback(null), 6000);
+                  }}
+                  className="px-3 py-1.5 bg-white hover:bg-neutral-50 text-neutral-800 text-xs font-semibold rounded-lg border border-neutral-300 transition shrink-0 shadow-xs"
+                >
+                  Re-enable Demo Mode (Testing)
+                </button>
+              </div>
+            ) : (
+              <div className="p-4 rounded-2xl border border-amber-300 bg-amber-50/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shrink-0">
+                    <Database className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-extrabold text-sm text-amber-950">System Mode: Demo & Evaluation Mode</h4>
+                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">Demo Active</span>
+                    </div>
+                    <p className="text-xs text-amber-800 mt-0.5">
+                      Demo persona switcher buttons (Citizen, Government, Community, Innovation, Admin) are currently displayed in the navbar. Click &ldquo;Delete All Demo&rdquo; below to wipe mock data and enter production mode.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div>
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-neutral-900 text-white flex items-center justify-center font-bold">
@@ -240,10 +290,10 @@ export const AdminPortal: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-extrabold text-base text-neutral-900">
-                    Simultaneous Multi-Panel Demo Data Controller
+                    National Data Storage & Platform Lifecycle Controller
                   </h3>
                   <p className="text-xs text-neutral-500">
-                    Purge or re-populate realistic representative datasets across all 5 user portals (Citizen, Government, Community, Innovation, Admin) simultaneously.
+                    Manage persistent records across all 5 user portals (Citizen, Government, Community, Innovation, Admin) or switch to clean production mode.
                   </p>
                 </div>
               </div>
@@ -286,15 +336,15 @@ export const AdminPortal: React.FC = () => {
 
             {/* Action Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-              {/* Card 1: Remove All Demo Data */}
+              {/* Card 1: Delete All Demo & Enter Production Mode */}
               <div className="p-5 rounded-2xl border border-red-200 bg-red-50/30 flex flex-col justify-between space-y-4">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 text-red-800 font-bold text-sm">
                     <Trash2 className="w-4 h-4 text-red-600" />
-                    <span>Option 1: Remove All Demo Data</span>
+                    <span>Delete All Demo & Enter Production Mode</span>
                   </div>
                   <p className="text-xs text-red-900/70 leading-relaxed">
-                    Instantly purges all complaints, community drives, university challenges, and audit events from all panels simultaneously, leaving a completely clean production state. Demo login accounts are safely retained.
+                    Purges all demo complaints, community drives, university challenges, solutions, and audit logs. Removes the demo persona buttons (| Citizen Government Community Innovation Admin & GIS) and fake logins entirely, switching the app strictly to production mode.
                   </p>
                 </div>
 
@@ -305,19 +355,19 @@ export const AdminPortal: React.FC = () => {
                       className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold text-xs rounded-xl transition flex items-center gap-2 shadow-xs"
                     >
                       <Trash2 className="w-4 h-4" />
-                      <span>Remove All Data Across Panels</span>
+                      <span>Delete All Demo Data (Enter Production Mode)</span>
                     </button>
                   ) : (
                     <div className="p-3 bg-white rounded-xl border border-red-300 space-y-2">
                       <p className="text-xs text-red-700 font-bold">
-                        Are you sure you want to wipe all panels simultaneously?
+                        Are you sure you want to delete all demo data and switch to live production mode? This removes all fake logins and demo persona switchers from the entire app.
                       </p>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={handleRemoveAll}
                           className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-semibold text-xs rounded-lg transition"
                         >
-                          Yes, Remove All
+                          Yes, Delete All Demo & Enter Production
                         </button>
                         <button
                           onClick={() => setShowClearConfirm(false)}
@@ -335,7 +385,7 @@ export const AdminPortal: React.FC = () => {
             <div className="p-4 bg-neutral-50 rounded-xl border border-neutral-200 text-xs text-neutral-600 flex items-start gap-2">
               <ShieldCheck className="w-4 h-4 text-neutral-600 shrink-0 mt-0.5" />
               <span>
-                <strong>Zero Schema Corruption:</strong> Wiping or re-seeding demo data strictly operates in isolated client state and localStorage. Core GIS gazetted ward boundaries, user authentication tokens, and deterministic priority algorithms remain 100% untouched.
+                <strong>Zero Schema Corruption:</strong> Purging demo data strictly resets client and local storage. Core GIS gazetted ward boundaries, user authentication tokens, and deterministic priority algorithms remain 100% untouched.
               </span>
             </div>
           </div>
