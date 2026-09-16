@@ -122,6 +122,10 @@ export const ReportWizardModal: React.FC<ReportWizardModalProps> = ({ onClose, o
   // 2. Validate and Dispatch Complaint
   const handleSubmitReport = () => {
     if (!description.trim() || !locationSnapshot || !currentAiResult) return;
+    if (currentAiResult.isValidEvidence === false || currentAiResult.isAiGeneratedOrSynthetic || !currentAiResult.isCivicRelated) {
+      alert(currentAiResult.rejectionReason || 'Uploaded evidence is invalid or synthetic. Please upload a real civic defect photo.');
+      return;
+    }
 
     // Check for potential duplicate complaints within 350m
     const foundDuplicates = detectPotentialDuplicates(
@@ -332,50 +336,104 @@ export const ReportWizardModal: React.FC<ReportWizardModalProps> = ({ onClose, o
           {/* STEP 2: STREAMLINED REVIEW & LOCATION CONFIRMATION */}
           {step === 'review_and_location' && currentAiResult && locationSnapshot && (
             <div className="space-y-4 animate-in fade-in">
-              {/* AI Vision Detection Summary Card */}
-              <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/40 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-emerald-600" />
-                    <span className="font-bold text-xs text-neutral-900 uppercase tracking-wider">
-                      Gemini Flash Vision Analysis
-                    </span>
-                  </div>
-                  <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full">
-                    Confidence: {(currentAiResult.confidence * 100).toFixed(0)}%
-                  </span>
-                </div>
-
-                <div className="flex gap-3.5 items-start bg-white p-3 rounded-xl border border-neutral-200">
-                  {uploadedFiles[0] && (
-                    <img 
-                      src={uploadedFiles[0].url} 
-                      alt="Evidence" 
-                      className="w-20 h-20 rounded-lg object-cover border border-neutral-200 flex-shrink-0"
-                    />
-                  )}
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-xs text-neutral-900">
-                        {currentAiResult.problemType}
-                      </span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                        currentAiResult.severity === 'CRITICAL' ? 'bg-red-100 text-red-800' :
-                        currentAiResult.severity === 'HIGH' ? 'bg-amber-100 text-amber-800' :
-                        'bg-blue-100 text-blue-800'
-                      }`}>
-                        {currentAiResult.severity}
+              {/* AI Vision Detection Summary Card / Forensic Audit Card */}
+              {currentAiResult.isValidEvidence === false || currentAiResult.isAiGeneratedOrSynthetic || !currentAiResult.isCivicRelated ? (
+                /* REJECTED / SYNTHETIC / NON-CIVIC EVIDENCE ALERT */
+                <div className="p-4 rounded-xl border border-red-300 bg-red-50/70 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-red-600" />
+                      <span className="font-bold text-xs text-red-900 uppercase tracking-wider">
+                        Forensic Integrity Audit: {currentAiResult.isAiGeneratedOrSynthetic ? 'Synthetic Image Detected' : 'Non-Civic Media'}
                       </span>
                     </div>
-                    <p className="text-[11px] text-neutral-600 truncate">
-                      Department: <strong className="text-neutral-800">{currentAiResult.suggestedDepartment}</strong>
-                    </p>
-                    <p className="text-[11px] text-neutral-500 italic line-clamp-2">
-                      "{currentAiResult.explanation}"
-                    </p>
+                    <span className="text-[11px] font-bold text-red-800 bg-red-100 px-2.5 py-0.5 rounded-full">
+                      REJECTED
+                    </span>
+                  </div>
+
+                  <div className="flex gap-3.5 items-start bg-white p-3.5 rounded-xl border border-red-200">
+                    {uploadedFiles[0] && (
+                      <div className="relative">
+                        <img 
+                          src={uploadedFiles[0].url} 
+                          alt="Rejected Evidence" 
+                          className="w-20 h-20 rounded-lg object-cover border border-red-300 flex-shrink-0 grayscale-[30%]"
+                        />
+                        <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white rounded-full p-0.5 text-[10px]">
+                          ✕
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-xs text-red-900">
+                          {currentAiResult.detectedSubject || currentAiResult.problemType}
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-100 text-red-800">
+                          {currentAiResult.isAiGeneratedOrSynthetic ? 'AI GENERATED / SYNTHETIC' : 'NON-CIVIC CONTENT'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-red-700 leading-relaxed font-medium">
+                        {currentAiResult.rejectionReason || 'The uploaded file does not qualify as genuine, photographic evidence of municipal infrastructure or civic hazards.'}
+                      </p>
+                      <p className="text-[10px] text-neutral-500 italic">
+                        {currentAiResult.explanation}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 bg-red-100/60 rounded-lg text-[11px] text-red-800 font-medium flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-600"></span>
+                    <span>Submission is restricted to authentic, on-site photographs of actual civic defects.</span>
                   </div>
                 </div>
-              </div>
+              ) : (
+                /* VALID GENUINE CIVIC EVIDENCE SUMMARY */
+                <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/40 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-emerald-600" />
+                      <span className="font-bold text-xs text-neutral-900 uppercase tracking-wider">
+                        Gemini Flash Vision Analysis
+                      </span>
+                    </div>
+                    <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full">
+                      Confidence: {(currentAiResult.confidence * 100).toFixed(0)}%
+                    </span>
+                  </div>
+
+                  <div className="flex gap-3.5 items-start bg-white p-3 rounded-xl border border-neutral-200">
+                    {uploadedFiles[0] && (
+                      <img 
+                        src={uploadedFiles[0].url} 
+                        alt="Evidence" 
+                        className="w-20 h-20 rounded-lg object-cover border border-neutral-200 flex-shrink-0"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-xs text-neutral-900">
+                          {currentAiResult.problemType}
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                          currentAiResult.severity === 'CRITICAL' ? 'bg-red-100 text-red-800' :
+                          currentAiResult.severity === 'HIGH' ? 'bg-amber-100 text-amber-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {currentAiResult.severity}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-neutral-600 truncate">
+                        Department: <strong className="text-neutral-800">{currentAiResult.suggestedDepartment}</strong>
+                      </p>
+                      <p className="text-[11px] text-neutral-500 italic line-clamp-2">
+                        "{currentAiResult.explanation}"
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Editable Report Details (Pre-filled by AI) */}
               <div className="space-y-3">
@@ -460,15 +518,26 @@ export const ReportWizardModal: React.FC<ReportWizardModalProps> = ({ onClose, o
                   <span>Change Photo</span>
                 </button>
 
-                <button
-                  type="button"
-                  disabled={!description.trim()}
-                  onClick={handleSubmitReport}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white font-semibold text-xs rounded-xl transition shadow-xs"
-                >
-                  <span>Submit Complaint</span>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                </button>
+                {currentAiResult.isValidEvidence === false || currentAiResult.isAiGeneratedOrSynthetic || !currentAiResult.isCivicRelated ? (
+                  <button
+                    type="button"
+                    onClick={() => setStep('evidence')}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold text-xs rounded-xl transition shadow-xs"
+                  >
+                    <Camera className="w-4 h-4 text-white" />
+                    <span>Upload Real Civic Photo</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={!description.trim()}
+                    onClick={handleSubmitReport}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white font-semibold text-xs rounded-xl transition shadow-xs"
+                  >
+                    <span>Submit Complaint</span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  </button>
+                )}
               </div>
             </div>
           )}

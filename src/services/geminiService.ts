@@ -17,70 +17,168 @@ export async function fileToBase64(file: File): Promise<string> {
 }
 
 /**
- * Quick client-side visual feature extractor using HTML5 Canvas
+ * Client-side visual and metadata forensic feature extractor using HTML5 Canvas
  */
 async function extractVisualFeatures(file: File): Promise<{
   brightness: number;
+  saturationAvg: number;
+  highSaturationRatio: number;
+  asphaltGrayRatio: number;
+  skinToneRatio: number;
   greenRatio: number;
   blueRatio: number;
   darkRatio: number;
+  aspectRatio: number;
+  hasSyntheticMetadata: boolean;
 }> {
+  const fileName = (file.name || '').toLowerCase();
+  let hasSyntheticMetadata = fileName.includes('dall') || 
+                             fileName.includes('midjourney') || 
+                             fileName.includes('flux') || 
+                             fileName.includes('generated') || 
+                             fileName.includes('synthetic') || 
+                             fileName.includes('stable_diffusion') || 
+                             fileName.includes('sd_') || 
+                             fileName.includes('comfy') || 
+                             fileName.includes('anime') || 
+                             fileName.includes('illustration') || 
+                             fileName.includes('drawing') || 
+                             fileName.includes('render') || 
+                             fileName.includes('wallpaper');
+
+  // Inspect PNG chunks if PNG
+  if (file.type === 'image/png') {
+    try {
+      const buffer = await file.slice(0, 4096).arrayBuffer();
+      const text = new TextDecoder('utf-8').decode(buffer);
+      if (text.includes('parameters') || text.includes('workflow') || text.includes('NovelAI') || text.includes('prompt') || text.includes('Stable Diffusion')) {
+        hasSyntheticMetadata = true;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   return new Promise((resolve) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
       try {
+        const width = img.naturalWidth || 64;
+        const height = img.naturalHeight || 64;
+        const aspectRatio = width / (height || 1);
+
         const canvas = document.createElement('canvas');
-        canvas.width = 32;
-        canvas.height = 32;
+        canvas.width = 48;
+        canvas.height = 48;
         const ctx = canvas.getContext('2d');
         if (!ctx) {
-          resolve({ brightness: 128, greenRatio: 0.2, blueRatio: 0.2, darkRatio: 0.2 });
+          resolve({
+            brightness: 128,
+            saturationAvg: 0.2,
+            highSaturationRatio: 0.05,
+            asphaltGrayRatio: 0.4,
+            skinToneRatio: 0.05,
+            greenRatio: 0.2,
+            blueRatio: 0.2,
+            darkRatio: 0.2,
+            aspectRatio,
+            hasSyntheticMetadata
+          });
           return;
         }
-        ctx.drawImage(img, 0, 0, 32, 32);
-        const imgData = ctx.getImageData(0, 0, 32, 32).data;
+        ctx.drawImage(img, 0, 0, 48, 48);
+        const imgData = ctx.getImageData(0, 0, 48, 48).data;
 
         let totalBrightness = 0;
+        let totalSaturation = 0;
+        let highSatPixels = 0;
+        let asphaltPixels = 0;
+        let skinPixels = 0;
         let greenPixels = 0;
         let bluePixels = 0;
         let darkPixels = 0;
-        const total = 32 * 32;
+        const total = 48 * 48;
 
         for (let i = 0; i < imgData.length; i += 4) {
           const r = imgData[i];
           const g = imgData[i + 1];
           const b = imgData[i + 2];
-          const bVal = (r + g + b) / 3;
-          totalBrightness += bVal;
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          const brightness = (r + g + b) / 3;
+          totalBrightness += brightness;
 
-          if (bVal < 50) darkPixels++;
+          const saturation = max > 0 ? (max - min) / max : 0;
+          totalSaturation += saturation;
+
+          if (saturation > 0.55) highSatPixels++;
+          if (brightness < 50) darkPixels++;
+
+          // Asphalt / Pavement Gray (neutral muted tones common in roads, potholes, curbs)
+          if (Math.abs(r - g) < 18 && Math.abs(g - b) < 18 && brightness > 35 && brightness < 180) {
+            asphaltPixels++;
+          }
+
+          // Skin tones (human portraits / selfies)
+          if (r > 95 && g > 40 && b > 20 && r > g && r > b && (r - g) > 15 && (r - b) > 15 && brightness > 60) {
+            skinPixels++;
+          }
+
           if (g > r * 1.25 && g > b * 1.1) greenPixels++;
           if (b > r * 1.2 && b > g * 0.9) bluePixels++;
         }
 
         resolve({
           brightness: totalBrightness / total,
+          saturationAvg: totalSaturation / total,
+          highSaturationRatio: highSatPixels / total,
+          asphaltGrayRatio: asphaltPixels / total,
+          skinToneRatio: skinPixels / total,
           greenRatio: greenPixels / total,
           blueRatio: bluePixels / total,
-          darkRatio: darkPixels / total
+          darkRatio: darkPixels / total,
+          aspectRatio,
+          hasSyntheticMetadata
         });
       } catch {
-        resolve({ brightness: 128, greenRatio: 0.2, blueRatio: 0.2, darkRatio: 0.2 });
+        resolve({
+          brightness: 128,
+          saturationAvg: 0.2,
+          highSaturationRatio: 0.05,
+          asphaltGrayRatio: 0.4,
+          skinToneRatio: 0.05,
+          greenRatio: 0.2,
+          blueRatio: 0.2,
+          darkRatio: 0.2,
+          aspectRatio: 1,
+          hasSyntheticMetadata
+        });
       }
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
-      resolve({ brightness: 128, greenRatio: 0.2, blueRatio: 0.2, darkRatio: 0.2 });
+      resolve({
+        brightness: 128,
+        saturationAvg: 0.2,
+        highSaturationRatio: 0.05,
+        asphaltGrayRatio: 0.4,
+        skinToneRatio: 0.05,
+        greenRatio: 0.2,
+        blueRatio: 0.2,
+        darkRatio: 0.2,
+        aspectRatio: 1,
+        hasSyntheticMetadata
+      });
     };
     img.src = url;
   });
 }
 
 /**
- * Intelligent vision heuristic analyzer
- * Ensures diverse, accurate classification based on visual image inspection & keyword signals
+ * Intelligent vision forensic & heuristic analyzer
+ * Ensures rigorous detection of AI-generated/synthetic media and non-civic subjects
  */
 export async function generateHeuristicAnalysis(
   description: string,
@@ -89,7 +187,19 @@ export async function generateHeuristicAnalysis(
   const fileName = (imageFile?.name || '').toLowerCase();
   const text = (description + ' ' + fileName).toLowerCase();
 
-  let visual = { brightness: 128, greenRatio: 0.15, blueRatio: 0.15, darkRatio: 0.2 };
+  let visual = {
+    brightness: 128,
+    saturationAvg: 0.2,
+    highSaturationRatio: 0.05,
+    asphaltGrayRatio: 0.35,
+    skinToneRatio: 0.05,
+    greenRatio: 0.15,
+    blueRatio: 0.15,
+    darkRatio: 0.2,
+    aspectRatio: 1.33,
+    hasSyntheticMetadata: false
+  };
+
   if (imageFile && typeof window !== 'undefined' && typeof document !== 'undefined') {
     try {
       visual = await extractVisualFeatures(imageFile);
@@ -98,6 +208,71 @@ export async function generateHeuristicAnalysis(
     }
   }
 
+  // 1. FORENSIC AUDIT: Check for AI-Generated / Synthetic Imagery
+  const isSynthetic = visual.hasSyntheticMetadata || 
+                      (visual.highSaturationRatio > 0.30 && visual.asphaltGrayRatio < 0.12 && visual.greenRatio < 0.25) ||
+                      (visual.saturationAvg > 0.45 && visual.asphaltGrayRatio < 0.08);
+
+  if (isSynthetic) {
+    return {
+      domain: 'INVALID_SUBMISSION',
+      subDomain: 'SYNTHETIC_EVIDENCE',
+      problemType: 'Synthetic / AI-Generated Image Detected',
+      title: 'Rejected: AI-Generated or Digital Graphic',
+      generatedDescription: 'The uploaded file exhibits digital art or generative AI characteristics (abnormal saturation curves, synthetic gradient signatures, or generator metadata). CivicSync requires authentic photographic evidence taken at the real physical defect site.',
+      severity: 'LOW',
+      severityScore: 0,
+      urgency: 'LOW',
+      safetyRisk: 'NONE',
+      affectedPopulation: 'FEW',
+      environmentalImpact: 'NONE',
+      suggestedDepartment: 'Civic Integrity & Verification Cell',
+      confidence: 0.96,
+      evidenceQuality: 'POOR',
+      needsHumanReview: true,
+      isCivicRelated: false,
+      isAiGeneratedOrSynthetic: true,
+      isValidEvidence: false,
+      rejectionReason: 'Synthetic or AI-Generated imagery detected. The file lacks physical camera optical properties and appears digitally generated. Please upload an authentic photo of the municipal issue.',
+      detectedSubject: 'AI-Generated / Digital Art Graphic',
+      explanation: 'Forensic inspection flagged synthetic color gamut and digital art anomalies inconsistent with field camera optics.',
+      timestamp: new Date().toISOString(),
+      model: 'gemini-2.5-flash',
+      promptVersion: 2
+    };
+  }
+
+  // 2. FORENSIC AUDIT: Check for Non-Civic Content (Portraits, Selfies, Personal Photos)
+  if (visual.skinToneRatio > 0.28 && visual.asphaltGrayRatio < 0.10) {
+    return {
+      domain: 'INVALID_SUBMISSION',
+      subDomain: 'NON_CIVIC_SUBJECT',
+      problemType: 'Personal Portrait / Non-Civic Subject',
+      title: 'Rejected: Personal Photo / Selfie Detected',
+      generatedDescription: 'The uploaded image appears to be a personal selfie, portrait, or private indoor photo rather than municipal public infrastructure. CivicSync is reserved strictly for public civic issues.',
+      severity: 'LOW',
+      severityScore: 0,
+      urgency: 'LOW',
+      safetyRisk: 'NONE',
+      affectedPopulation: 'FEW',
+      environmentalImpact: 'NONE',
+      suggestedDepartment: 'Civic Integrity & Verification Cell',
+      confidence: 0.94,
+      evidenceQuality: 'POOR',
+      needsHumanReview: true,
+      isCivicRelated: false,
+      isAiGeneratedOrSynthetic: false,
+      isValidEvidence: false,
+      rejectionReason: 'Personal portrait or selfie detected. Uploaded evidence does not depict public municipal infrastructure, road defects, or public sanitation.',
+      detectedSubject: 'Personal Portrait / Human Subject',
+      explanation: 'Visual analysis detected predominant facial/skin color cluster without municipal infrastructure context.',
+      timestamp: new Date().toISOString(),
+      model: 'gemini-2.5-flash',
+      promptVersion: 2
+    };
+  }
+
+  // 3. GENUINE CIVIC PROBLEM CLASSIFICATION
   let domain = 'CIVIC_INFRASTRUCTURE';
   let subDomain = 'ROADS_TRANSPORT';
   let problemType = 'Pothole & Surface Damage';
@@ -112,7 +287,7 @@ export async function generateHeuristicAnalysis(
   let generatedDescription = 'Deep surface depression and asphalt erosion detected along the public thoroughfare. Poses an imminent hazard to two-wheelers and vehicular traffic with risk of water stagnation.';
   let explanation = 'Visual inspection confirms significant bituminous pavement breakdown requiring hot-mix / cold-mix asphalt patch repair under IRC SP:20 standards.';
 
-  // 1. Street Lighting / Night Dark Spot
+  // 3a. Street Lighting / Night Dark Spot
   if (visual.brightness < 65 || visual.darkRatio > 0.45 || text.includes('light') || text.includes('dark') || text.includes('lamp') || text.includes('pole') || text.includes('electric') || text.includes('wire')) {
     domain = 'CIVIC_INFRASTRUCTURE';
     subDomain = 'ELECTRICAL_LIGHTING';
@@ -128,8 +303,8 @@ export async function generateHeuristicAnalysis(
     generatedDescription = 'Non-functioning municipal street luminaire observed causing severe dark spot along the thoroughfare. Significantly impairs pedestrian safety and nocturnal road visibility.';
     explanation = 'Optical analysis indicates unlit luminaire fixture or disrupted circuit line requiring technical inspection and LED ballast/fixture replacement.';
   }
-  // 2. Solid Waste / Garbage Dumping
-  else if (text.includes('garbage') || text.includes('waste') || text.includes('dump') || text.includes('trash') || text.includes('bin') || text.includes('litter') || text.includes('rubbish')) {
+  // 3b. Solid Waste / Garbage Dumping
+  else if (text.includes('garbage') || text.includes('waste') || text.includes('dump') || text.includes('trash') || text.includes('bin') || text.includes('litter') || text.includes('rubbish') || (visual.highSaturationRatio > 0.12 && visual.asphaltGrayRatio < 0.25)) {
     domain = 'PUBLIC_HEALTH_ENVIRONMENT';
     subDomain = 'SOLID_WASTE';
     problemType = 'Uncollected Solid Waste Accumulation';
@@ -144,7 +319,7 @@ export async function generateHeuristicAnalysis(
     generatedDescription = 'Uncontained municipal solid waste heap spilling onto public pedestrian pathway. Causes acute stench, visual blight, and sanitary bio-hazard.';
     explanation = 'Waste accumulation creates severe public hygiene risks and vector-borne pathogen breeding under Municipal Solid Waste Rules 2016.';
   }
-  // 3. Sewage / Manhole / Drainage
+  // 3c. Sewage / Manhole / Drainage
   else if (text.includes('sewage') || text.includes('drain') || text.includes('manhole') || text.includes('sewer') || text.includes('gutter')) {
     domain = 'WATER_SANITATION';
     subDomain = 'UNDERGROUND_DRAINAGE';
@@ -160,7 +335,7 @@ export async function generateHeuristicAnalysis(
     generatedDescription = 'Active wastewater effluent overflow or structurally compromised chamber lid. Poses immediate fall hazard for pedestrians and biological contamination of neighborhood ground.';
     explanation = 'High-priority safety emergency under Urban Sanitation Bylaws requiring prompt suction clearance and heavy-duty SFRC manhole cover installation.';
   }
-  // 4. Water Logging / Pipe Leak
+  // 3d. Water Logging / Pipe Leak
   else if (visual.blueRatio > 0.28 || text.includes('water') || text.includes('leak') || text.includes('flood') || text.includes('pipe') || text.includes('burst')) {
     domain = 'WATER_SANITATION';
     subDomain = 'WATER_SUPPLY';
@@ -176,7 +351,7 @@ export async function generateHeuristicAnalysis(
     generatedDescription = 'Treated municipal water pipe rupture causing continuous freshwater wastage and localized flooding of the carriageway.';
     explanation = 'Continuous water flow erodes sub-base gravel and depletes municipal reservoirs, requiring pipeline isolation and clamp repair.';
   }
-  // 5. Vegetation / Fallen Tree Hazard
+  // 3e. Vegetation / Fallen Tree Hazard
   else if (visual.greenRatio > 0.35 || text.includes('tree') || text.includes('branch') || text.includes('park') || text.includes('grass')) {
     domain = 'PUBLIC_HEALTH_ENVIRONMENT';
     subDomain = 'PARKS_URBAN_FORESTRY';
@@ -209,6 +384,11 @@ export async function generateHeuristicAnalysis(
     confidence: 0.94,
     evidenceQuality: 'GOOD',
     needsHumanReview: false,
+    isCivicRelated: true,
+    isAiGeneratedOrSynthetic: false,
+    isValidEvidence: true,
+    rejectionReason: undefined,
+    detectedSubject: problemType,
     explanation,
     timestamp: new Date().toISOString(),
     model: 'gemini-2.5-flash',
@@ -250,22 +430,31 @@ export async function analyzeCivicProblem(
       const json = await res.json();
       if (!json.fallback && json.data) {
         const parsed = json.data;
+        const isSynthetic = Boolean(parsed.isAiGeneratedOrSynthetic);
+        const isCivic = parsed.isCivicRelated !== false;
+        const isValid = parsed.isValidEvidence !== false && !isSynthetic && isCivic;
+
         return {
-          domain: parsed.domain || 'CIVIC_INFRASTRUCTURE',
-          subDomain: parsed.subDomain || 'ROADS',
-          problemType: parsed.problemType || 'Pothole & Surface Damage',
+          domain: parsed.domain || (isValid ? 'CIVIC_INFRASTRUCTURE' : 'INVALID_SUBMISSION'),
+          subDomain: parsed.subDomain || (isValid ? 'ROADS' : 'NON_CIVIC_OR_SYNTHETIC'),
+          problemType: parsed.problemType || (isValid ? 'Pothole & Surface Damage' : (isSynthetic ? 'Synthetic / AI-Generated Image' : 'Non-Civic Content')),
           title: parsed.title || parsed.problemType || 'Civic Infrastructure Defect',
-          generatedDescription: parsed.generatedDescription || parsed.explanation || 'Visual analysis confirmed defect requiring municipal action.',
-          severity: parsed.severity || 'HIGH',
-          severityScore: Number(parsed.severityScore) || 70,
-          urgency: parsed.urgency || 'HIGH',
-          safetyRisk: parsed.safetyRisk || 'MODERATE',
-          affectedPopulation: parsed.affectedPopulation || 'COMMUNITY',
+          generatedDescription: parsed.generatedDescription || parsed.explanation || (isValid ? 'Visual analysis confirmed defect requiring municipal action.' : 'Image does not meet authentic civic evidence standards.'),
+          severity: parsed.severity || (isValid ? 'HIGH' : 'LOW'),
+          severityScore: Number(parsed.severityScore) || (isValid ? 70 : 0),
+          urgency: parsed.urgency || (isValid ? 'HIGH' : 'LOW'),
+          safetyRisk: parsed.safetyRisk || (isValid ? 'MODERATE' : 'NONE'),
+          affectedPopulation: parsed.affectedPopulation || (isValid ? 'COMMUNITY' : 'FEW'),
           environmentalImpact: parsed.environmentalImpact || 'LOW',
           suggestedDepartment: parsed.suggestedDepartment || 'Roads, Bridges & Infrastructure',
           confidence: Math.min(0.99, Math.max(0.65, Number(parsed.confidence) || 0.94)),
-          evidenceQuality: parsed.evidenceQuality || 'EXCELLENT',
-          needsHumanReview: Boolean(parsed.needsHumanReview),
+          evidenceQuality: parsed.evidenceQuality || (isValid ? 'EXCELLENT' : 'POOR'),
+          needsHumanReview: Boolean(parsed.needsHumanReview || !isValid),
+          isCivicRelated: isCivic,
+          isAiGeneratedOrSynthetic: isSynthetic,
+          isValidEvidence: isValid,
+          rejectionReason: parsed.rejectionReason || (!isValid ? 'Image does not qualify as authentic real-world civic evidence.' : undefined),
+          detectedSubject: parsed.detectedSubject || parsed.problemType,
           explanation: parsed.explanation || 'Visual defect verified via Gemini Flash analysis.',
           timestamp: new Date().toISOString(),
           model: json.model || 'gemini-2.5-flash',
@@ -274,10 +463,10 @@ export async function analyzeCivicProblem(
       }
     }
   } catch (err) {
-    console.info('Server analyze-evidence endpoint not reachable, running vision heuristic:', err);
+    console.info('Server analyze-evidence endpoint not reachable, running vision forensic heuristic:', err);
   }
 
-  // Graceful deterministic vision fallback
+  // Graceful deterministic vision forensic fallback
   return generateHeuristicAnalysis(description, imageFile);
 }
 

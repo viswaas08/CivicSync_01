@@ -109,6 +109,11 @@ export interface GeminiAnalysisResult {
   confidence: number; // 0.0 - 1.0
   evidenceQuality: 'POOR' | 'ACCEPTABLE' | 'GOOD' | 'EXCELLENT';
   needsHumanReview: boolean;
+  isCivicRelated: boolean;
+  isAiGeneratedOrSynthetic: boolean;
+  isValidEvidence: boolean;
+  rejectionReason?: string;
+  detectedSubject?: string;
   title?: string;
   generatedDescription?: string;
   explanation: string;
