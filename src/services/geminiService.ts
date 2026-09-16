@@ -237,7 +237,7 @@ export async function generateHeuristicAnalysis(
       detectedSubject: 'AI-Generated / Digital Art Graphic',
       explanation: 'Forensic inspection flagged synthetic color gamut and digital art anomalies inconsistent with field camera optics.',
       timestamp: new Date().toISOString(),
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
       promptVersion: 2
     };
   }
@@ -267,7 +267,7 @@ export async function generateHeuristicAnalysis(
       detectedSubject: 'Personal Portrait / Human Subject',
       explanation: 'Visual analysis detected predominant facial/skin color cluster without municipal infrastructure context.',
       timestamp: new Date().toISOString(),
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
       promptVersion: 2
     };
   }
@@ -391,7 +391,7 @@ export async function generateHeuristicAnalysis(
     detectedSubject: problemType,
     explanation,
     timestamp: new Date().toISOString(),
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3.6-flash',
     promptVersion: 2
   };
 }
@@ -457,7 +457,7 @@ export async function analyzeCivicProblem(
           detectedSubject: parsed.detectedSubject || parsed.problemType,
           explanation: parsed.explanation || 'Visual defect verified via Gemini Flash analysis.',
           timestamp: new Date().toISOString(),
-          model: json.model || 'gemini-2.5-flash',
+          model: json.model || 'gemini-3.6-flash',
           promptVersion: 2
         };
       }

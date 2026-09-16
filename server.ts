@@ -798,11 +798,10 @@ Respond strictly with a single JSON object adhering to this schema:
       });
     }
 
-    // Models priority: Gemini 2.5 Flash, Gemini 2.0 Flash, Gemini 1.5 Flash
+    // Models priority: gemini-3.6-flash
     const candidateModels = [
-      process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash'
+      process.env.GEMINI_MODEL || 'gemini-3.6-flash',
+      'gemini-3.6-flash'
     ];
 
     let responseText = '';
@@ -856,7 +855,7 @@ app.get('/api/gemini/status', (req, res) => {
   const hasKey = Boolean(runtimeApiKey || (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY'));
   res.json({
     configured: hasKey,
-    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+    model: process.env.GEMINI_MODEL || 'gemini-3.6-flash'
   });
 });
 
