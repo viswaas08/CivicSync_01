@@ -90,7 +90,10 @@ export const ReportWizardModal: React.FC<ReportWizardModalProps> = ({ onClose, o
 
         // Immediately trigger Gemini Flash analysis on the uploaded image
         setIsAnalyzing(true);
-        const aiResult = await analyzeCivicProblem('', file);
+        const aiResult = await analyzeCivicProblem('', file, {
+          isInternetOrStockImage: validation.file.isInternetOrStockImage,
+          warning: validation.file.provenanceWarning
+        });
 
         setCurrentAiResult(aiResult);
         setAiAnalysisHistory([aiResult]);
@@ -122,8 +125,14 @@ export const ReportWizardModal: React.FC<ReportWizardModalProps> = ({ onClose, o
   // 2. Validate and Dispatch Complaint
   const handleSubmitReport = () => {
     if (!description.trim() || !locationSnapshot || !currentAiResult) return;
-    if (currentAiResult.isValidEvidence === false || currentAiResult.isAiGeneratedOrSynthetic || !currentAiResult.isCivicRelated) {
-      alert(currentAiResult.rejectionReason || 'Uploaded evidence is invalid or synthetic. Please upload a real civic defect photo.');
+    const isRejected = currentAiResult.isValidEvidence === false || 
+                       currentAiResult.isAiGeneratedOrSynthetic || 
+                       Boolean(currentAiResult.isInternetOrStockImage) ||
+                       Boolean(currentAiResult.isFakeOrRecycledEvidence) ||
+                       !currentAiResult.isCivicRelated;
+
+    if (isRejected) {
+      alert(currentAiResult.rejectionReason || 'Uploaded evidence is invalid, synthetic, or from the internet. Please upload a real civic defect photo taken on site.');
       return;
     }
 
@@ -337,14 +346,14 @@ export const ReportWizardModal: React.FC<ReportWizardModalProps> = ({ onClose, o
           {step === 'review_and_location' && currentAiResult && locationSnapshot && (
             <div className="space-y-4 animate-in fade-in">
               {/* AI Vision Detection Summary Card / Forensic Audit Card */}
-              {currentAiResult.isValidEvidence === false || currentAiResult.isAiGeneratedOrSynthetic || !currentAiResult.isCivicRelated ? (
-                /* REJECTED / SYNTHETIC / NON-CIVIC EVIDENCE ALERT */
+              {(currentAiResult.isValidEvidence === false || currentAiResult.isAiGeneratedOrSynthetic || Boolean(currentAiResult.isInternetOrStockImage) || Boolean(currentAiResult.isFakeOrRecycledEvidence) || !currentAiResult.isCivicRelated) ? (
+                /* REJECTED / SYNTHETIC / INTERNET / NON-CIVIC EVIDENCE ALERT */
                 <div className="p-4 rounded-xl border border-red-300 bg-red-50/70 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4 text-red-600" />
                       <span className="font-bold text-xs text-red-900 uppercase tracking-wider">
-                        Forensic Integrity Audit: {currentAiResult.isAiGeneratedOrSynthetic ? 'Synthetic Image Detected' : 'Non-Civic Media'}
+                        Forensic Integrity Audit: {currentAiResult.isAiGeneratedOrSynthetic ? 'Synthetic Image Detected' : (currentAiResult.isInternetOrStockImage ? 'Recycled Internet / Stock Photo Detected' : 'Non-Civic Media')}
                       </span>
                     </div>
                     <span className="text-[11px] font-bold text-red-800 bg-red-100 px-2.5 py-0.5 rounded-full">
@@ -371,12 +380,17 @@ export const ReportWizardModal: React.FC<ReportWizardModalProps> = ({ onClose, o
                           {currentAiResult.detectedSubject || currentAiResult.problemType}
                         </span>
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-100 text-red-800">
-                          {currentAiResult.isAiGeneratedOrSynthetic ? 'AI GENERATED / SYNTHETIC' : 'NON-CIVIC CONTENT'}
+                          {currentAiResult.isAiGeneratedOrSynthetic ? 'AI GENERATED / SYNTHETIC' : (currentAiResult.isInternetOrStockImage ? 'INTERNET / STOCK IMAGE (FAKE COMPLAINT)' : 'NON-CIVIC CONTENT')}
                         </span>
                       </div>
                       <p className="text-[11px] text-red-700 leading-relaxed font-medium">
-                        {currentAiResult.rejectionReason || 'The uploaded file does not qualify as genuine, photographic evidence of municipal infrastructure or civic hazards.'}
+                        {currentAiResult.rejectionReason || 'The uploaded file does not qualify as genuine, on-site photographic evidence of municipal infrastructure or civic hazards.'}
                       </p>
+                      {currentAiResult.provenanceWarning && (
+                        <p className="text-[10px] text-amber-800 bg-amber-50 p-1.5 rounded border border-amber-200 font-medium">
+                          {currentAiResult.provenanceWarning}
+                        </p>
+                      )}
                       <p className="text-[10px] text-neutral-500 italic">
                         {currentAiResult.explanation}
                       </p>
@@ -384,8 +398,8 @@ export const ReportWizardModal: React.FC<ReportWizardModalProps> = ({ onClose, o
                   </div>
 
                   <div className="p-2.5 bg-red-100/60 rounded-lg text-[11px] text-red-800 font-medium flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-600"></span>
-                    <span>Submission is restricted to authentic, on-site photographs of actual civic defects.</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-600 flex-shrink-0"></span>
+                    <span>Submissions are strictly restricted to authentic, on-site photographs of actual civic defects. Recycled web images and stock photos are rejected.</span>
                   </div>
                 </div>
               ) : (
@@ -518,7 +532,7 @@ export const ReportWizardModal: React.FC<ReportWizardModalProps> = ({ onClose, o
                   <span>Change Photo</span>
                 </button>
 
-                {currentAiResult.isValidEvidence === false || currentAiResult.isAiGeneratedOrSynthetic || !currentAiResult.isCivicRelated ? (
+                {(currentAiResult.isValidEvidence === false || currentAiResult.isAiGeneratedOrSynthetic || Boolean(currentAiResult.isInternetOrStockImage) || Boolean(currentAiResult.isFakeOrRecycledEvidence) || !currentAiResult.isCivicRelated) ? (
                   <button
                     type="button"
                     onClick={() => setStep('evidence')}

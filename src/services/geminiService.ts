@@ -33,6 +33,7 @@ async function extractVisualFeatures(file: File): Promise<{
   darkRatio: number;
   aspectRatio: number;
   hasSyntheticMetadata: boolean;
+  hasInternetOrStockMetadata: boolean;
 }> {
   const fileName = (file.name || '').toLowerCase();
   let hasSyntheticMetadata = fileName.includes('dall') || 
@@ -48,6 +49,25 @@ async function extractVisualFeatures(file: File): Promise<{
                              fileName.includes('drawing') || 
                              fileName.includes('render') || 
                              fileName.includes('wallpaper');
+
+  const isCameraPrefix = fileName.startsWith('img_') || 
+                         fileName.startsWith('pxl_') || 
+                         fileName.startsWith('dsc_') || 
+                         fileName.startsWith('photo_') ||
+                         fileName.startsWith('dcim_') ||
+                         fileName.startsWith('wp_') ||
+                         fileName.startsWith('camera_');
+
+  const webKeywords = [
+    'download', 'stock', 'getty', 'shutterstock', 'istock', 'unnamed',
+    'scaled', 'images.', 'images (', 'images_', 'jfif', '1200x', '800x', '1024x', '640x',
+    'pothole', 'road', 'street', 'damage', 'drain', 'garbage', 'trash',
+    'wp-content', 'media', 'alamy', 'dreamstime', 'depositphotos', 'freepik',
+    'unsplash', 'pixabay', 'wikimedia', 'google', 'bing', 'pinterest', 'reddit',
+    'waterlog', 'asphalt', 'crater', 'traffic', 'cdn'
+  ];
+
+  const hasInternetOrStockMetadata = webKeywords.some(kw => fileName.includes(kw)) || (!isCameraPrefix && file.size < 900 * 1024);
 
   const hasDocumentKeywords = fileName.includes('note') || 
                               fileName.includes('page') || 
@@ -100,7 +120,8 @@ async function extractVisualFeatures(file: File): Promise<{
             blueRatio: 0.2,
             darkRatio: 0.2,
             aspectRatio,
-            hasSyntheticMetadata
+            hasSyntheticMetadata,
+            hasInternetOrStockMetadata
           });
           return;
         }
@@ -177,7 +198,8 @@ async function extractVisualFeatures(file: File): Promise<{
           blueRatio: bluePixels / total,
           darkRatio: darkPixels / total,
           aspectRatio,
-          hasSyntheticMetadata
+          hasSyntheticMetadata,
+          hasInternetOrStockMetadata
         });
       } catch {
         resolve({
@@ -193,7 +215,8 @@ async function extractVisualFeatures(file: File): Promise<{
           blueRatio: 0.2,
           darkRatio: 0.2,
           aspectRatio: 1,
-          hasSyntheticMetadata
+          hasSyntheticMetadata,
+          hasInternetOrStockMetadata
         });
       }
     };
@@ -212,7 +235,8 @@ async function extractVisualFeatures(file: File): Promise<{
         blueRatio: 0.2,
         darkRatio: 0.2,
         aspectRatio: 1,
-        hasSyntheticMetadata
+        hasSyntheticMetadata,
+        hasInternetOrStockMetadata
       });
     };
     img.src = url;
@@ -225,7 +249,8 @@ async function extractVisualFeatures(file: File): Promise<{
  */
 export async function generateHeuristicAnalysis(
   description: string,
-  imageFile?: File
+  imageFile?: File,
+  provenanceClue?: { isInternetOrStockImage?: boolean; warning?: string }
 ): Promise<GeminiAnalysisResult> {
   const fileName = (imageFile?.name || '').toLowerCase();
   const text = (description + ' ' + fileName).toLowerCase();
@@ -240,7 +265,8 @@ export async function generateHeuristicAnalysis(
     blueRatio: 0.15,
     darkRatio: 0.2,
     aspectRatio: 1.33,
-    hasSyntheticMetadata: false
+    hasSyntheticMetadata: false,
+    hasInternetOrStockMetadata: false
   };
 
   if (imageFile && typeof window !== 'undefined' && typeof document !== 'undefined') {
@@ -335,10 +361,63 @@ export async function generateHeuristicAnalysis(
       needsHumanReview: true,
       isCivicRelated: false,
       isAiGeneratedOrSynthetic: false,
+      isInternetOrStockImage: false,
       isValidEvidence: false,
       rejectionReason: 'Document or notebook page detected. Uploaded evidence does not depict public municipal infrastructure, road defects, or public sanitation.',
       detectedSubject: 'Handwritten Notebook Page / Paper Document',
+      detectedSourceType: 'DOCUMENT',
       explanation: 'Visual analysis detected high-contrast text lines on document paper without municipal infrastructure context.',
+      timestamp: new Date().toISOString(),
+      model: 'gemini-3.6-flash',
+      promptVersion: 2
+    };
+  }
+
+  // 2c. FORENSIC AUDIT: Check for Downloaded Internet / Stock Photo
+  const isWebDownload = visual.hasInternetOrStockMetadata || 
+                        Boolean(provenanceClue?.isInternetOrStockImage) ||
+                        fileName.includes('download') ||
+                        fileName.includes('stock') ||
+                        fileName.includes('getty') ||
+                        fileName.includes('shutterstock') ||
+                        fileName.includes('istock') ||
+                        fileName.includes('unnamed') ||
+                        fileName.includes('scaled') ||
+                        fileName.includes('jfif') ||
+                        fileName.includes('images.') ||
+                        fileName.includes('images (') ||
+                        fileName.includes('wp-content') ||
+                        fileName.includes('pothole-') ||
+                        fileName.includes('pothole') ||
+                        (imageFile && imageFile.size < 600 * 1024 && !fileName.startsWith('img_') && !fileName.startsWith('pxl_') && !fileName.startsWith('dsc_') && !fileName.startsWith('photo_'));
+
+  if (isWebDownload) {
+    return {
+      domain: 'INVALID_SUBMISSION',
+      subDomain: 'INTERNET_STOCK_MEDIA',
+      problemType: 'Downloaded Internet / Stock Image Detected',
+      title: 'Rejected: Recycled Internet / Stock Photo',
+      generatedDescription: 'The uploaded file displays file signatures and metadata profiles typical of downloaded internet images, stock photography, or web media (missing live camera sensor hardware EXIF tags). Civic complaints require authentic photos captured live on-site.',
+      severity: 'LOW',
+      severityScore: 0,
+      urgency: 'LOW',
+      safetyRisk: 'NONE',
+      affectedPopulation: 'FEW',
+      environmentalImpact: 'NONE',
+      suggestedDepartment: 'Civic Integrity & Verification Cell',
+      confidence: 0.96,
+      evidenceQuality: 'POOR',
+      needsHumanReview: true,
+      isCivicRelated: false,
+      isAiGeneratedOrSynthetic: false,
+      isInternetOrStockImage: true,
+      isFakeOrRecycledEvidence: true,
+      isValidEvidence: false,
+      rejectionReason: 'Downloaded internet / stock image detected. The file lacks live camera sensor EXIF tags and appears downloaded from the web. CivicSync requires authentic on-site photos.',
+      detectedSubject: 'Recycled Web / Stock Image',
+      detectedSourceType: 'INTERNET_OR_STOCK',
+      provenanceWarning: provenanceClue?.warning || 'Downloaded web image detected. Missing camera hardware EXIF tags.',
+      explanation: 'Metadata forensic audit flagged web download naming and missing camera hardware shutter tags.',
       timestamp: new Date().toISOString(),
       model: 'gemini-3.6-flash',
       promptVersion: 2
@@ -459,9 +538,11 @@ export async function generateHeuristicAnalysis(
     needsHumanReview: false,
     isCivicRelated: true,
     isAiGeneratedOrSynthetic: false,
+    isInternetOrStockImage: false,
     isValidEvidence: true,
     rejectionReason: undefined,
     detectedSubject: problemType,
+    detectedSourceType: 'LIVE_CAMERA_PHOTO',
     explanation,
     timestamp: new Date().toISOString(),
     model: 'gemini-3.6-flash',
@@ -472,26 +553,31 @@ export async function generateHeuristicAnalysis(
 const FORENSIC_AI_PROMPT = `You are an expert municipal infrastructure defect verification and image forensic AI for the CivicSync platform.
 Inspect this image evidence thoroughly.
 
-MANDATORY FIRST STEP: IMAGE FORENSIC & CIVIC RELEVANCE AUDIT:
+MANDATORY FIRST STEP: IMAGE FORENSIC & PROVENANCE AUDIT:
 1. Is this image AI-GENERATED, SYNTHETIC, CGI, 3D RENDERED, ANIME, CARTOON, or DIGITAL ART?
    - Set "isAiGeneratedOrSynthetic": true / false.
-2. Does this image show a GENUINE MUNICIPAL / CIVIC INFRASTRUCTURE ISSUE?
-   - Valid civic issues: road potholes, broken asphalt, overflowing garbage, illegal dumpsite, broken/open manhole, sewage leak, broken streetlight, fallen power lines, clogged storm drain, broken sidewalk, water main rupture, fallen tree blocking road.
+2. Is this image an INTERNET / STOCK / NEWS MEDIA / RECYCLED / DOWNLOADED WEB PHOTO?
+   - Check for: professional stock photography composition, studio lighting, news agency editorial angles, watermarks/logos (Getty, Alamy, Reuters, Shutterstock, news outlets), foreign geography/license plates/road markings not typical of local field reporting, or web recompression artifacts.
+   - Set "isInternetOrStockImage": true / false.
+   - Set "isFakeOrRecycledEvidence": true / false.
+   - Set "provenanceWarning": string explaining the suspicion (or empty string if authentic on-site).
+3. Does this image show a GENUINE MUNICIPAL / CIVIC INFRASTRUCTURE ISSUE?
    - NON-CIVIC subjects: personal selfies, portraits, pets, indoor bedrooms/living rooms, food, anime, video games, documents, handwritten notes, notebook pages, books, paper sheets, receipts.
    - Set "isCivicRelated": true / false.
-3. Is this VALID CIVIC EVIDENCE?
-   - Set "isValidEvidence": true ONLY IF (isCivicRelated === true AND isAiGeneratedOrSynthetic === false).
+4. "detectedSourceType": "LIVE_CAMERA_PHOTO" | "INTERNET_OR_STOCK" | "SYNTHETIC_AI" | "DOCUMENT" | "UNKNOWN"
+5. Is this VALID LOCAL CIVIC EVIDENCE?
+   - Set "isValidEvidence": true ONLY IF (isCivicRelated === true AND isAiGeneratedOrSynthetic === false AND isInternetOrStockImage === false AND isFakeOrRecycledEvidence === false).
    - If false, explain why in "rejectionReason".
-4. Identify what is shown in "detectedSubject" (e.g. "Handwritten student notebook page", "Indoor pet cat", "Asphalt road pothole").
+6. Identify what is shown in "detectedSubject" (e.g. "Stock photo of waterlogged pothole", "Handwritten notebook page", "Live camera asphalt pothole").
 
 IF VALID EVIDENCE (isValidEvidence == true):
 - Categorize domain ("CIVIC_INFRASTRUCTURE" | "PUBLIC_HEALTH_ENVIRONMENT" | "WATER_SANITATION"), subDomain, problemType, title, generatedDescription, severity, urgency, safetyRisk, affectedPopulation, environmentalImpact, suggestedDepartment.
 
 IF NOT VALID EVIDENCE (isValidEvidence == false):
 - domain: "INVALID_SUBMISSION"
-- subDomain: "NON_CIVIC_OR_SYNTHETIC"
-- problemType: isAiGeneratedOrSynthetic ? "Synthetic / AI-Generated Image" : "Non-Civic Content / Document"
-- title: isAiGeneratedOrSynthetic ? "Rejected: AI-Generated / Synthetic Evidence" : "Rejected: Non-Civic Content"
+- subDomain: isInternetOrStockImage ? "INTERNET_STOCK_MEDIA" : "NON_CIVIC_OR_SYNTHETIC"
+- problemType: isAiGeneratedOrSynthetic ? "Synthetic / AI-Generated Image" : (isInternetOrStockImage ? "Recycled Internet / Stock Photo Detected" : "Non-Civic Content / Document")
+- title: isAiGeneratedOrSynthetic ? "Rejected: AI-Generated / Synthetic Evidence" : (isInternetOrStockImage ? "Rejected: Recycled Internet / Stock Photo" : "Rejected: Non-Civic Content")
 - generatedDescription: rejectionReason
 - severity: "LOW"
 - severityScore: 0
@@ -506,8 +592,12 @@ Respond strictly with a single JSON object adhering to this schema:
 {
   "isCivicRelated": boolean,
   "isAiGeneratedOrSynthetic": boolean,
+  "isInternetOrStockImage": boolean,
+  "isFakeOrRecycledEvidence": boolean,
   "isValidEvidence": boolean,
   "detectedSubject": string,
+  "detectedSourceType": "LIVE_CAMERA_PHOTO" | "INTERNET_OR_STOCK" | "SYNTHETIC_AI" | "DOCUMENT" | "UNKNOWN",
+  "provenanceWarning": string,
   "rejectionReason": string,
   "domain": string,
   "subDomain": string,
@@ -532,7 +622,8 @@ Respond strictly with a single JSON object adhering to this schema:
  */
 export async function analyzeCivicProblem(
   description: string,
-  imageFile?: File
+  imageFile?: File,
+  provenanceClue?: { isInternetOrStockImage?: boolean; warning?: string }
 ): Promise<GeminiAnalysisResult> {
   let imageBase64: string | undefined = undefined;
   let mimeType: string = 'image/jpeg';
@@ -552,6 +643,8 @@ export async function analyzeCivicProblem(
                        (import.meta as any).env?.VITE_GEMINI_API_KEY ||
                        '';
 
+  const isLikelyWebDownload = Boolean(provenanceClue?.isInternetOrStockImage);
+
   // Strategy 1: Call direct Google Generative Language API from browser (supports Firebase Hosting, mobile, & web)
   if (activeApiKey && imageBase64) {
     try {
@@ -560,7 +653,7 @@ export async function analyzeCivicProblem(
         contents: [{
           parts: [
             { text: FORENSIC_AI_PROMPT },
-            { text: `User description or filename: "${description || imageFile?.name || 'Evidence photo'}"` },
+            { text: `User description or filename: "${description || imageFile?.name || 'Evidence photo'}". ${isLikelyWebDownload ? `CRITICAL PROVENANCE AUDIT ALERT: Client forensic analysis indicates this image is a downloaded internet or stock photo (${provenanceClue?.warning || ''}).` : ''}` },
             {
               inline_data: {
                 mime_type: mimeType,
@@ -596,14 +689,15 @@ export async function analyzeCivicProblem(
 
           const parsed = JSON.parse(rawText);
           const isSynthetic = Boolean(parsed.isAiGeneratedOrSynthetic);
+          const isInternet = Boolean(parsed.isInternetOrStockImage) || Boolean(parsed.isFakeOrRecycledEvidence) || isLikelyWebDownload;
           const isCivic = parsed.isCivicRelated !== false;
-          const isValid = parsed.isValidEvidence !== false && !isSynthetic && isCivic;
+          const isValid = parsed.isValidEvidence !== false && !isSynthetic && isCivic && !isInternet;
 
           return {
             domain: parsed.domain || (isValid ? 'CIVIC_INFRASTRUCTURE' : 'INVALID_SUBMISSION'),
-            subDomain: parsed.subDomain || (isValid ? 'ROADS' : 'NON_CIVIC_OR_SYNTHETIC'),
-            problemType: parsed.problemType || (isValid ? 'Pothole & Surface Damage' : (isSynthetic ? 'Synthetic / AI-Generated Image' : 'Non-Civic Content')),
-            title: parsed.title || parsed.problemType || 'Civic Infrastructure Defect',
+            subDomain: parsed.subDomain || (isValid ? 'ROADS' : (isInternet ? 'INTERNET_STOCK_MEDIA' : 'NON_CIVIC_OR_SYNTHETIC')),
+            problemType: parsed.problemType || (isValid ? 'Pothole & Surface Damage' : (isSynthetic ? 'Synthetic / AI-Generated Image' : (isInternet ? 'Recycled Internet / Stock Photo Detected' : 'Non-Civic Content'))),
+            title: parsed.title || (isInternet ? 'Rejected: Recycled Internet / Stock Photo' : (isSynthetic ? 'Rejected: AI-Generated Evidence' : 'Civic Infrastructure Defect')),
             generatedDescription: parsed.generatedDescription || parsed.explanation || (isValid ? 'Visual analysis confirmed defect requiring municipal action.' : 'Image does not meet authentic civic evidence standards.'),
             severity: parsed.severity || (isValid ? 'HIGH' : 'LOW'),
             severityScore: Number(parsed.severityScore) || (isValid ? 70 : 0),
@@ -611,15 +705,19 @@ export async function analyzeCivicProblem(
             safetyRisk: parsed.safetyRisk || (isValid ? 'MODERATE' : 'NONE'),
             affectedPopulation: parsed.affectedPopulation || (isValid ? 'COMMUNITY' : 'FEW'),
             environmentalImpact: parsed.environmentalImpact || 'LOW',
-            suggestedDepartment: parsed.suggestedDepartment || 'Roads, Bridges & Infrastructure',
+            suggestedDepartment: isValid ? (parsed.suggestedDepartment || 'Roads, Bridges & Infrastructure') : 'Civic Integrity & Verification Cell',
             confidence: Math.min(0.99, Math.max(0.65, Number(parsed.confidence) || 0.96)),
             evidenceQuality: parsed.evidenceQuality || (isValid ? 'EXCELLENT' : 'POOR'),
             needsHumanReview: Boolean(parsed.needsHumanReview || !isValid),
             isCivicRelated: isCivic,
             isAiGeneratedOrSynthetic: isSynthetic,
+            isInternetOrStockImage: isInternet,
+            isFakeOrRecycledEvidence: isInternet,
             isValidEvidence: isValid,
-            rejectionReason: parsed.rejectionReason || (!isValid ? 'Image does not qualify as authentic real-world civic evidence.' : undefined),
+            rejectionReason: parsed.rejectionReason || (!isValid ? (isInternet ? 'Uploaded image was identified as a downloaded internet or stock photo, not an authentic on-site citizen photograph.' : 'Image does not qualify as authentic real-world civic evidence.') : undefined),
             detectedSubject: parsed.detectedSubject || parsed.problemType,
+            detectedSourceType: parsed.detectedSourceType || (isInternet ? 'INTERNET_OR_STOCK' : isSynthetic ? 'SYNTHETIC_AI' : 'LIVE_CAMERA_PHOTO'),
+            provenanceWarning: parsed.provenanceWarning || provenanceClue?.warning || (isInternet ? 'Web provenance detected: Image appears sourced from an online search or stock archive.' : undefined),
             explanation: parsed.explanation || 'Visual defect verified via Gemini Flash analysis.',
             timestamp: new Date().toISOString(),
             model: 'gemini-3.6-flash',
@@ -641,7 +739,10 @@ export async function analyzeCivicProblem(
         description: description || '',
         imageBase64,
         mimeType,
-        apiKey: activeApiKey || undefined
+        apiKey: activeApiKey || undefined,
+        fileName: imageFile?.name,
+        isLikelyWebDownload,
+        provenanceReason: provenanceClue?.warning
       })
     });
 
@@ -651,14 +752,15 @@ export async function analyzeCivicProblem(
       if (!json.fallback && json.data) {
         const parsed = json.data;
         const isSynthetic = Boolean(parsed.isAiGeneratedOrSynthetic);
+        const isInternet = Boolean(parsed.isInternetOrStockImage) || Boolean(parsed.isFakeOrRecycledEvidence) || isLikelyWebDownload;
         const isCivic = parsed.isCivicRelated !== false;
-        const isValid = parsed.isValidEvidence !== false && !isSynthetic && isCivic;
+        const isValid = parsed.isValidEvidence !== false && !isSynthetic && isCivic && !isInternet;
 
         return {
           domain: parsed.domain || (isValid ? 'CIVIC_INFRASTRUCTURE' : 'INVALID_SUBMISSION'),
-          subDomain: parsed.subDomain || (isValid ? 'ROADS' : 'NON_CIVIC_OR_SYNTHETIC'),
-          problemType: parsed.problemType || (isValid ? 'Pothole & Surface Damage' : (isSynthetic ? 'Synthetic / AI-Generated Image' : 'Non-Civic Content')),
-          title: parsed.title || parsed.problemType || 'Civic Infrastructure Defect',
+          subDomain: parsed.subDomain || (isValid ? 'ROADS' : (isInternet ? 'INTERNET_STOCK_MEDIA' : 'NON_CIVIC_OR_SYNTHETIC')),
+          problemType: parsed.problemType || (isValid ? 'Pothole & Surface Damage' : (isSynthetic ? 'Synthetic / AI-Generated Image' : (isInternet ? 'Recycled Internet / Stock Photo Detected' : 'Non-Civic Content'))),
+          title: parsed.title || (isInternet ? 'Rejected: Recycled Internet / Stock Photo' : (isSynthetic ? 'Rejected: AI-Generated Evidence' : 'Civic Infrastructure Defect')),
           generatedDescription: parsed.generatedDescription || parsed.explanation || (isValid ? 'Visual analysis confirmed defect requiring municipal action.' : 'Image does not meet authentic civic evidence standards.'),
           severity: parsed.severity || (isValid ? 'HIGH' : 'LOW'),
           severityScore: Number(parsed.severityScore) || (isValid ? 70 : 0),
@@ -666,15 +768,19 @@ export async function analyzeCivicProblem(
           safetyRisk: parsed.safetyRisk || (isValid ? 'MODERATE' : 'NONE'),
           affectedPopulation: parsed.affectedPopulation || (isValid ? 'COMMUNITY' : 'FEW'),
           environmentalImpact: parsed.environmentalImpact || 'LOW',
-          suggestedDepartment: parsed.suggestedDepartment || 'Roads, Bridges & Infrastructure',
+          suggestedDepartment: isValid ? (parsed.suggestedDepartment || 'Roads, Bridges & Infrastructure') : 'Civic Integrity & Verification Cell',
           confidence: Math.min(0.99, Math.max(0.65, Number(parsed.confidence) || 0.94)),
           evidenceQuality: parsed.evidenceQuality || (isValid ? 'EXCELLENT' : 'POOR'),
           needsHumanReview: Boolean(parsed.needsHumanReview || !isValid),
           isCivicRelated: isCivic,
           isAiGeneratedOrSynthetic: isSynthetic,
+          isInternetOrStockImage: isInternet,
+          isFakeOrRecycledEvidence: isInternet,
           isValidEvidence: isValid,
-          rejectionReason: parsed.rejectionReason || (!isValid ? 'Image does not qualify as authentic real-world civic evidence.' : undefined),
+          rejectionReason: parsed.rejectionReason || (!isValid ? (isInternet ? 'Uploaded image was identified as a downloaded internet or stock photo, not an authentic on-site citizen photograph.' : 'Image does not qualify as authentic real-world civic evidence.') : undefined),
           detectedSubject: parsed.detectedSubject || parsed.problemType,
+          detectedSourceType: parsed.detectedSourceType || (isInternet ? 'INTERNET_OR_STOCK' : isSynthetic ? 'SYNTHETIC_AI' : 'LIVE_CAMERA_PHOTO'),
+          provenanceWarning: parsed.provenanceWarning || provenanceClue?.warning || (isInternet ? 'Web provenance detected: Image appears sourced from an online search or stock archive.' : undefined),
           explanation: parsed.explanation || 'Visual defect verified via Gemini Flash analysis.',
           timestamp: new Date().toISOString(),
           model: json.model || 'gemini-3.6-flash',
@@ -687,7 +793,7 @@ export async function analyzeCivicProblem(
   }
 
   // Strategy 3: Graceful deterministic vision forensic fallback (identifies synthetic, portraits, documents, & real defects)
-  return generateHeuristicAnalysis(description, imageFile);
+  return generateHeuristicAnalysis(description, imageFile, provenanceClue);
 }
 
 /**

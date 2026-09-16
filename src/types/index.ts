@@ -112,6 +112,10 @@ export interface GeminiAnalysisResult {
   isCivicRelated: boolean;
   isAiGeneratedOrSynthetic: boolean;
   isValidEvidence: boolean;
+  isInternetOrStockImage?: boolean;
+  isFakeOrRecycledEvidence?: boolean;
+  provenanceWarning?: string;
+  detectedSourceType?: 'LIVE_CAMERA_PHOTO' | 'INTERNET_OR_STOCK' | 'SYNTHETIC_AI' | 'DOCUMENT' | 'UNKNOWN';
   rejectionReason?: string;
   detectedSubject?: string;
   title?: string;
@@ -136,6 +140,10 @@ export interface EvidenceFile {
     gpsLatitude?: number;
     gpsLongitude?: number;
   };
+  hasCameraExif?: boolean;
+  isInternetOrStockImage?: boolean;
+  isFakeOrRecycledEvidence?: boolean;
+  provenanceWarning?: string;
   qualityScore: number; // 0-100
   aiAuthenticityRisk: number; // 0-100 (probabilistic score, not definitive)
   gpsConsistent: boolean;

@@ -715,7 +715,7 @@ app.post('/api/v1/admin/gis/seed', (req, res) => {
 
 // 2. Server-side multimodal evidence analysis endpoint using Gemini Flash
 app.post('/api/analyze-evidence', async (req, res) => {
-  const { description, imageBase64, mimeType, apiKey } = req.body;
+  const { description, imageBase64, mimeType, apiKey, fileName, isLikelyWebDownload, provenanceReason } = req.body;
 
   const client = getGeminiClient(apiKey);
 
@@ -729,29 +729,36 @@ app.post('/api/analyze-evidence', async (req, res) => {
   try {
     const prompt = `You are an expert municipal infrastructure defect verification and image forensic AI for the CivicSync civic platform.
 Inspect this civic issue report and its attached visual photographic evidence carefully.
-User note (if provided): "${description || 'Visual civic issue report'}"
+User note or filename: "${description || fileName || 'Visual civic issue report'}"
+${isLikelyWebDownload ? `CRITICAL PROVENANCE AUDIT ALERT: Client-side file inspection flagged this image as a downloaded internet/stock asset (filename: "${fileName || ''}", missing native camera sensor hardware tags). ${provenanceReason || ''}` : ''}
 
-MANDATORY FIRST STEP: IMAGE FORENSIC & CIVIC RELEVANCE AUDIT:
+MANDATORY FIRST STEP: IMAGE FORENSIC & PROVENANCE AUDIT:
 1. Is this image AI-GENERATED, SYNTHETIC, CGI, 3D RENDERED, ANIME, CARTOON, or DIGITAL ART?
    - Check for: synthetic smooth diffusion textures, unnatural specular gradients, impossible geometries, digital brushwork, anime/cartoon styling, or surreal art.
    - Set "isAiGeneratedOrSynthetic": true / false.
-2. Does this image show a GENUINE MUNICIPAL / CIVIC INFRASTRUCTURE ISSUE?
+2. Is this image an INTERNET / STOCK / NEWS MEDIA / RECYCLED PHOTO / DOWNLOADED WEB IMAGE?
+   - Check for: stock photography angles and studio-quality lighting/composition, watermarks or wiped watermarks (Getty, Alamy, Shutterstock, news outlets), foreign geography/road signs/license plates not typical of local field reporting, web recompression artifacts, or generic internet photos of potholes/garbage recycled from search engines or social media.
+   - Set "isInternetOrStockImage": true / false.
+   - Set "isFakeOrRecycledEvidence": true / false.
+   - Set "provenanceWarning": string explaining the suspicion (or empty string if authentic live on-site photo).
+3. Does this image show a GENUINE MUNICIPAL / CIVIC INFRASTRUCTURE ISSUE?
    - Valid civic issues: road potholes, broken asphalt, overflowing garbage, illegal dumpsite, broken/open manhole, sewage leak, broken streetlight, fallen power lines, clogged storm drain, broken sidewalk, water main rupture, fallen tree blocking road.
-   - NON-CIVIC subjects: personal selfies, portraits, pets, indoor bedrooms/living rooms, food, anime, video games, cars without defects, abstract art, nature landscapes without municipal infrastructure.
+   - NON-CIVIC subjects: personal selfies, portraits, pets, indoor bedrooms/living rooms, food, anime, video games, cars without defects, abstract art, notebook pages, documents, books.
    - Set "isCivicRelated": true / false.
-3. Is this VALID CIVIC EVIDENCE?
-   - Set "isValidEvidence": true ONLY IF (isCivicRelated === true AND isAiGeneratedOrSynthetic === false).
-   - If false, explain why in "rejectionReason" (e.g. "Synthetic / AI-generated artwork detected. Civic complaints require authentic real-world camera photos.", or "Non-civic subject detected (indoor room/pet/personal photo). No municipal infrastructure defect found.").
-4. Identify what is shown in "detectedSubject" (e.g. "AI-generated fantasy city", "Indoor pet cat", "Asphalt road pothole").
+4. Set "detectedSourceType": "LIVE_CAMERA_PHOTO" | "INTERNET_OR_STOCK" | "SYNTHETIC_AI" | "DOCUMENT" | "UNKNOWN".
+5. Is this VALID LOCAL CIVIC EVIDENCE?
+   - Set "isValidEvidence": true ONLY IF (isCivicRelated === true AND isAiGeneratedOrSynthetic === false AND isInternetOrStockImage === false AND isFakeOrRecycledEvidence === false).
+   - If false, explain why in "rejectionReason" (e.g. "Uploaded image is a recycled internet/stock photo, not an authentic on-site citizen photograph. CivicSync disallows internet-sourced photos to prevent fraudulent or duplicate complaints.", or "Synthetic / AI-generated artwork detected.", or "Non-civic subject detected.").
+6. Identify what is shown in "detectedSubject" (e.g. "Internet stock photo of waterlogged pothole", "Handwritten notebook page", "Live camera asphalt pothole").
 
 IF VALID EVIDENCE (isValidEvidence == true):
 - Categorize domain ("CIVIC_INFRASTRUCTURE" | "PUBLIC_HEALTH_ENVIRONMENT" | "WATER_SANITATION"), subDomain, problemType, title, generatedDescription, severity, urgency, safetyRisk, affectedPopulation, environmentalImpact, suggestedDepartment.
 
 IF NOT VALID EVIDENCE (isValidEvidence == false):
 - domain: "INVALID_SUBMISSION"
-- subDomain: "NON_CIVIC_OR_SYNTHETIC"
-- problemType: isAiGeneratedOrSynthetic ? "Synthetic / AI-Generated Image" : "Non-Civic Content"
-- title: isAiGeneratedOrSynthetic ? "Rejected: AI-Generated / Synthetic Evidence" : "Rejected: Non-Civic Subject Matter"
+- subDomain: isInternetOrStockImage ? "INTERNET_STOCK_MEDIA" : "NON_CIVIC_OR_SYNTHETIC"
+- problemType: isAiGeneratedOrSynthetic ? "Synthetic / AI-Generated Image" : (isInternetOrStockImage ? "Recycled Internet / Stock Photo Detected" : "Non-Civic Content / Document")
+- title: isAiGeneratedOrSynthetic ? "Rejected: AI-Generated / Synthetic Evidence" : (isInternetOrStockImage ? "Rejected: Recycled Internet / Stock Photo" : "Rejected: Non-Civic Content")
 - generatedDescription: rejectionReason
 - severity: "LOW"
 - severityScore: 0
@@ -766,8 +773,12 @@ Respond strictly with a single JSON object adhering to this schema:
 {
   "isCivicRelated": boolean,
   "isAiGeneratedOrSynthetic": boolean,
+  "isInternetOrStockImage": boolean,
+  "isFakeOrRecycledEvidence": boolean,
   "isValidEvidence": boolean,
   "detectedSubject": string,
+  "detectedSourceType": "LIVE_CAMERA_PHOTO" | "INTERNET_OR_STOCK" | "SYNTHETIC_AI" | "DOCUMENT" | "UNKNOWN",
+  "provenanceWarning": string,
   "rejectionReason": string,
   "domain": string,
   "subDomain": string,
@@ -840,6 +851,26 @@ Respond strictly with a single JSON object adhering to this schema:
     }
 
     const parsed = JSON.parse(cleanJson);
+    const isSynthetic = Boolean(parsed.isAiGeneratedOrSynthetic);
+    const isInternet = Boolean(parsed.isInternetOrStockImage) || Boolean(parsed.isFakeOrRecycledEvidence) || Boolean(isLikelyWebDownload);
+    const isCivic = parsed.isCivicRelated !== false;
+    const isValid = parsed.isValidEvidence !== false && !isSynthetic && isCivic && !isInternet;
+
+    parsed.isAiGeneratedOrSynthetic = isSynthetic;
+    parsed.isInternetOrStockImage = isInternet;
+    parsed.isFakeOrRecycledEvidence = isInternet;
+    parsed.isCivicRelated = isCivic;
+    parsed.isValidEvidence = isValid;
+    if (!isValid && isInternet) {
+      parsed.domain = 'INVALID_SUBMISSION';
+      parsed.subDomain = 'INTERNET_STOCK_MEDIA';
+      parsed.problemType = 'Recycled Internet / Stock Photo Detected';
+      parsed.title = 'Rejected: Recycled Internet / Stock Photo';
+      parsed.suggestedDepartment = 'Civic Integrity & Verification Cell';
+      parsed.detectedSourceType = 'INTERNET_OR_STOCK';
+      parsed.rejectionReason = parsed.rejectionReason || 'Uploaded image was identified as a downloaded internet or stock photo, not an authentic on-site citizen photograph. Civic complaints require authentic live photos taken on-site to prevent fake reports.';
+    }
+
     return res.json({ fallback: false, data: parsed, model: resolvedModel });
   } catch (error: any) {
     console.warn('Gemini server execution error:', error?.message || error);
