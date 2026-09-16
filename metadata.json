@@ -1,0 +1,6 @@
+{
+  "name": "CivicSync",
+  "description": "Civic problem resolution platform connecting citizens, government departments, community volunteers, and civic innovators.",
+  "requestFramePermissions": ["camera", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

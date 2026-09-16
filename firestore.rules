@@ -1,0 +1,79 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Complaints collection
+    match /complaints/{complaintId} {
+      allow read: if true; // Public transparency for civic complaints
+      allow create: if true; // Citizens can submit reports (authenticated or guest/demo)
+      allow update: if isAuthenticated(); // Registered updates / reviews
+      allow delete: if isAuthenticated() && request.auth.token.admin == true;
+    }
+
+    // Complaint audit events (immutable)
+    match /complaintEvents/{eventId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if false;
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if isOwner(userId) || (isAuthenticated() && request.auth.token.admin == true);
+    }
+
+    // Community organizations
+    match /organizations/{orgId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Community opportunities
+    match /opportunities/{opportunityId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Innovation challenges
+    match /challenges/{challengeId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Innovation submissions
+    match /submissions/{subId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // System settings & GIS
+    match /systemSettings/{settingId} {
+      allow read, write: if true;
+    }
+
+    match /gisWards/{wardId} {
+      allow read, write: if true;
+    }
+
+    match /departments/{deptId} {
+      allow read, write: if true;
+    }
+
+    match /gisDatasets/{datasetId} {
+      allow read, write: if true;
+    }
+
+    match /jurisdictionCoverage/{covId} {
+      allow read, write: if true;
+    }
+  }
+}

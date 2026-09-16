@@ -1,0 +1,83 @@
+{
+  "entities": {
+    "Complaint": {
+      "title": "Complaint",
+      "description": "Civic complaints reported by citizens and handled by government departments or community partners",
+      "type": "object",
+      "properties": {
+        "complaintId": { "type": "string" },
+        "citizenId": { "type": "string" },
+        "citizenName": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "problemType": { "type": "string" },
+        "priorityScore": { "type": "number" },
+        "priorityLevel": { "type": "string" },
+        "status": { "type": "string" },
+        "location": { "type": "object" },
+        "locationSnapshot": { "type": "object" },
+        "sla": { "type": "object" },
+        "timeline": { "type": "array" },
+        "assignedDepartmentId": { "type": "string" },
+        "assignedDepartmentName": { "type": "string" },
+        "assignedOfficialId": { "type": "string" },
+        "assignedOfficialName": { "type": "string" },
+        "evidenceUrls": { "type": "array" },
+        "aiAnalysis": { "type": "object" },
+        "aiReviewApproved": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["complaintId", "category", "status", "createdAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User account and profile information across citizen, government, NGO, student, and admin roles",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string" },
+        "phone": { "type": "string" },
+        "departmentId": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "verificationStatus": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "ComplaintEvent": {
+      "title": "ComplaintEvent",
+      "description": "Immutable audit events for complaint lifecycle transitions",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string" },
+        "complaintId": { "type": "string" },
+        "actorId": { "type": "string" },
+        "actorRole": { "type": "string" },
+        "action": { "type": "string" },
+        "previousStatus": { "type": "string" },
+        "newStatus": { "type": "string" },
+        "notes": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["eventId", "complaintId", "action", "timestamp"]
+    }
+  },
+  "firestore": {
+    "complaints": {
+      "schema": "Complaint",
+      "description": "All civic complaints across cities and wards"
+    },
+    "complaintEvents": {
+      "schema": "ComplaintEvent",
+      "description": "Immutable audit events log"
+    },
+    "users": {
+      "schema": "UserProfile",
+      "description": "User profiles and assigned operational roles"
+    }
+  }
+}
