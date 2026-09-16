@@ -24,6 +24,9 @@ async function extractVisualFeatures(file: File): Promise<{
   saturationAvg: number;
   highSaturationRatio: number;
   asphaltGrayRatio: number;
+  whitePaperRatio: number;
+  inkTextRatio: number;
+  isDocumentOrNotebook: boolean;
   skinToneRatio: number;
   greenRatio: number;
   blueRatio: number;
@@ -45,6 +48,16 @@ async function extractVisualFeatures(file: File): Promise<{
                              fileName.includes('drawing') || 
                              fileName.includes('render') || 
                              fileName.includes('wallpaper');
+
+  const hasDocumentKeywords = fileName.includes('note') || 
+                              fileName.includes('page') || 
+                              fileName.includes('book') || 
+                              fileName.includes('paper') || 
+                              fileName.includes('doc') || 
+                              fileName.includes('sheet') || 
+                              fileName.includes('text') || 
+                              fileName.includes('receipt') || 
+                              fileName.includes('whatsapp image');
 
   // Inspect PNG chunks if PNG
   if (file.type === 'image/png') {
@@ -79,6 +92,9 @@ async function extractVisualFeatures(file: File): Promise<{
             saturationAvg: 0.2,
             highSaturationRatio: 0.05,
             asphaltGrayRatio: 0.4,
+            whitePaperRatio: 0.05,
+            inkTextRatio: 0.05,
+            isDocumentOrNotebook: false,
             skinToneRatio: 0.05,
             greenRatio: 0.2,
             blueRatio: 0.2,
@@ -95,6 +111,8 @@ async function extractVisualFeatures(file: File): Promise<{
         let totalSaturation = 0;
         let highSatPixels = 0;
         let asphaltPixels = 0;
+        let whitePaperPixels = 0;
+        let inkTextPixels = 0;
         let skinPixels = 0;
         let greenPixels = 0;
         let bluePixels = 0;
@@ -116,12 +134,22 @@ async function extractVisualFeatures(file: File): Promise<{
           if (saturation > 0.55) highSatPixels++;
           if (brightness < 50) darkPixels++;
 
-          // Asphalt / Pavement Gray (neutral muted tones common in roads, potholes, curbs)
-          if (Math.abs(r - g) < 18 && Math.abs(g - b) < 18 && brightness > 35 && brightness < 180) {
+          // White / Cream Paper Detection (Notebook pages, books, documents)
+          if (brightness > 165 && saturation < 0.22) {
+            whitePaperPixels++;
+          }
+
+          // Ink text / lines on paper
+          if (brightness < 75 && saturation < 0.35) {
+            inkTextPixels++;
+          }
+
+          // Genuine Asphalt / Pavement Gray (muted, dark-to-medium tones, NOT bright white paper)
+          if (Math.abs(r - g) < 16 && Math.abs(g - b) < 16 && brightness >= 40 && brightness <= 140 && saturation < 0.18) {
             asphaltPixels++;
           }
 
-          // Skin tones (human portraits / selfies)
+          // Skin tones (human portraits / selfies / hands)
           if (r > 95 && g > 40 && b > 20 && r > g && r > b && (r - g) > 15 && (r - b) > 15 && brightness > 60) {
             skinPixels++;
           }
@@ -130,11 +158,20 @@ async function extractVisualFeatures(file: File): Promise<{
           if (b > r * 1.2 && b > g * 0.9) bluePixels++;
         }
 
+        const whitePaperRatio = whitePaperPixels / total;
+        const inkTextRatio = inkTextPixels / total;
+        const isDocumentOrNotebook = (whitePaperRatio > 0.32 && inkTextRatio > 0.015) || 
+                                    (whitePaperRatio > 0.50) || 
+                                    (hasDocumentKeywords && whitePaperRatio > 0.25);
+
         resolve({
           brightness: totalBrightness / total,
           saturationAvg: totalSaturation / total,
           highSaturationRatio: highSatPixels / total,
           asphaltGrayRatio: asphaltPixels / total,
+          whitePaperRatio,
+          inkTextRatio,
+          isDocumentOrNotebook,
           skinToneRatio: skinPixels / total,
           greenRatio: greenPixels / total,
           blueRatio: bluePixels / total,
@@ -148,6 +185,9 @@ async function extractVisualFeatures(file: File): Promise<{
           saturationAvg: 0.2,
           highSaturationRatio: 0.05,
           asphaltGrayRatio: 0.4,
+          whitePaperRatio: 0.05,
+          inkTextRatio: 0.05,
+          isDocumentOrNotebook: false,
           skinToneRatio: 0.05,
           greenRatio: 0.2,
           blueRatio: 0.2,
@@ -164,6 +204,9 @@ async function extractVisualFeatures(file: File): Promise<{
         saturationAvg: 0.2,
         highSaturationRatio: 0.05,
         asphaltGrayRatio: 0.4,
+        whitePaperRatio: 0.05,
+        inkTextRatio: 0.05,
+        isDocumentOrNotebook: false,
         skinToneRatio: 0.05,
         greenRatio: 0.2,
         blueRatio: 0.2,
@@ -266,6 +309,36 @@ export async function generateHeuristicAnalysis(
       rejectionReason: 'Personal portrait or selfie detected. Uploaded evidence does not depict public municipal infrastructure, road defects, or public sanitation.',
       detectedSubject: 'Personal Portrait / Human Subject',
       explanation: 'Visual analysis detected predominant facial/skin color cluster without municipal infrastructure context.',
+      timestamp: new Date().toISOString(),
+      model: 'gemini-3.6-flash',
+      promptVersion: 2
+    };
+  }
+
+  // 2b. FORENSIC AUDIT: Check for Document / Notebook Page / Text Paper
+  if (visual.isDocumentOrNotebook) {
+    return {
+      domain: 'INVALID_SUBMISSION',
+      subDomain: 'NON_CIVIC_DOCUMENT',
+      problemType: 'Notebook Page / Document Detected',
+      title: 'Rejected: Notebook Page or Written Document',
+      generatedDescription: 'The uploaded file appears to be a notebook page, student class notes, or paper document rather than outdoor municipal infrastructure. Civic complaints require authentic photographic evidence of public civic defects.',
+      severity: 'LOW',
+      severityScore: 0,
+      urgency: 'LOW',
+      safetyRisk: 'NONE',
+      affectedPopulation: 'FEW',
+      environmentalImpact: 'NONE',
+      suggestedDepartment: 'Civic Integrity & Verification Cell',
+      confidence: 0.98,
+      evidenceQuality: 'POOR',
+      needsHumanReview: true,
+      isCivicRelated: false,
+      isAiGeneratedOrSynthetic: false,
+      isValidEvidence: false,
+      rejectionReason: 'Document or notebook page detected. Uploaded evidence does not depict public municipal infrastructure, road defects, or public sanitation.',
+      detectedSubject: 'Handwritten Notebook Page / Paper Document',
+      explanation: 'Visual analysis detected high-contrast text lines on document paper without municipal infrastructure context.',
       timestamp: new Date().toISOString(),
       model: 'gemini-3.6-flash',
       promptVersion: 2
@@ -396,25 +469,171 @@ export async function generateHeuristicAnalysis(
   };
 }
 
+const FORENSIC_AI_PROMPT = `You are an expert municipal infrastructure defect verification and image forensic AI for the CivicSync platform.
+Inspect this image evidence thoroughly.
+
+MANDATORY FIRST STEP: IMAGE FORENSIC & CIVIC RELEVANCE AUDIT:
+1. Is this image AI-GENERATED, SYNTHETIC, CGI, 3D RENDERED, ANIME, CARTOON, or DIGITAL ART?
+   - Set "isAiGeneratedOrSynthetic": true / false.
+2. Does this image show a GENUINE MUNICIPAL / CIVIC INFRASTRUCTURE ISSUE?
+   - Valid civic issues: road potholes, broken asphalt, overflowing garbage, illegal dumpsite, broken/open manhole, sewage leak, broken streetlight, fallen power lines, clogged storm drain, broken sidewalk, water main rupture, fallen tree blocking road.
+   - NON-CIVIC subjects: personal selfies, portraits, pets, indoor bedrooms/living rooms, food, anime, video games, documents, handwritten notes, notebook pages, books, paper sheets, receipts.
+   - Set "isCivicRelated": true / false.
+3. Is this VALID CIVIC EVIDENCE?
+   - Set "isValidEvidence": true ONLY IF (isCivicRelated === true AND isAiGeneratedOrSynthetic === false).
+   - If false, explain why in "rejectionReason".
+4. Identify what is shown in "detectedSubject" (e.g. "Handwritten student notebook page", "Indoor pet cat", "Asphalt road pothole").
+
+IF VALID EVIDENCE (isValidEvidence == true):
+- Categorize domain ("CIVIC_INFRASTRUCTURE" | "PUBLIC_HEALTH_ENVIRONMENT" | "WATER_SANITATION"), subDomain, problemType, title, generatedDescription, severity, urgency, safetyRisk, affectedPopulation, environmentalImpact, suggestedDepartment.
+
+IF NOT VALID EVIDENCE (isValidEvidence == false):
+- domain: "INVALID_SUBMISSION"
+- subDomain: "NON_CIVIC_OR_SYNTHETIC"
+- problemType: isAiGeneratedOrSynthetic ? "Synthetic / AI-Generated Image" : "Non-Civic Content / Document"
+- title: isAiGeneratedOrSynthetic ? "Rejected: AI-Generated / Synthetic Evidence" : "Rejected: Non-Civic Content"
+- generatedDescription: rejectionReason
+- severity: "LOW"
+- severityScore: 0
+- urgency: "LOW"
+- safetyRisk: "NONE"
+- affectedPopulation: "FEW"
+- environmentalImpact: "NONE"
+- suggestedDepartment: "Civic Integrity & Verification Cell"
+- needsHumanReview: true
+
+Respond strictly with a single JSON object adhering to this schema:
+{
+  "isCivicRelated": boolean,
+  "isAiGeneratedOrSynthetic": boolean,
+  "isValidEvidence": boolean,
+  "detectedSubject": string,
+  "rejectionReason": string,
+  "domain": string,
+  "subDomain": string,
+  "problemType": string,
+  "title": string,
+  "generatedDescription": string,
+  "severity": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
+  "severityScore": number,
+  "urgency": "LOW" | "MEDIUM" | "HIGH" | "IMMEDIATE",
+  "safetyRisk": "NONE" | "LOW" | "MODERATE" | "HIGH" | "HAZARDOUS",
+  "affectedPopulation": "FEW" | "NEIGHBORHOOD" | "COMMUNITY" | "MASSIVE",
+  "environmentalImpact": "NONE" | "LOW" | "MODERATE" | "SEVERE",
+  "suggestedDepartment": string,
+  "confidence": number,
+  "evidenceQuality": "POOR" | "ACCEPTABLE" | "GOOD" | "EXCELLENT",
+  "needsHumanReview": boolean,
+  "explanation": string
+}`;
+
 /**
- * Analyzes civic issue evidence using server-side Gemini Flash endpoint with robust fallback
+ * Analyzes civic issue evidence using live Gemini Flash endpoint with direct client fallback and local forensic heuristic
  */
 export async function analyzeCivicProblem(
   description: string,
   imageFile?: File
 ): Promise<GeminiAnalysisResult> {
-  try {
-    let imageBase64: string | undefined = undefined;
-    let mimeType: string | undefined = undefined;
+  let imageBase64: string | undefined = undefined;
+  let mimeType: string = 'image/jpeg';
 
-    if (imageFile) {
-      mimeType = imageFile.type || 'image/jpeg';
+  if (imageFile) {
+    mimeType = imageFile.type || 'image/jpeg';
+    try {
       imageBase64 = await fileToBase64(imageFile);
+    } catch (e) {
+      console.warn('Failed to read image as base64:', e);
     }
+  }
 
-    // Check for user-stored API key in browser
-    const storedApiKey = typeof window !== 'undefined' ? localStorage.getItem('civicsync_gemini_api_key') || '' : '';
+  // Active Gemini API key resolution (browser storage > Vite env > default key)
+  const storedApiKey = typeof window !== 'undefined' ? localStorage.getItem('civicsync_gemini_api_key') || '' : '';
+  const activeApiKey = storedApiKey ||
+                       (import.meta as any).env?.VITE_GEMINI_API_KEY ||
+                       '';
 
+  // Strategy 1: Call direct Google Generative Language API from browser (supports Firebase Hosting, mobile, & web)
+  if (activeApiKey && imageBase64) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${activeApiKey}`;
+      const payload = {
+        contents: [{
+          parts: [
+            { text: FORENSIC_AI_PROMPT },
+            { text: `User description or filename: "${description || imageFile?.name || 'Evidence photo'}"` },
+            {
+              inline_data: {
+                mime_type: mimeType,
+                data: imageBase64
+              }
+            }
+          ]
+        }],
+        generationConfig: {
+          responseMimeType: 'application/json'
+        }
+      };
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = await res.json();
+        let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (rawText) {
+          rawText = rawText.trim();
+          if (rawText.startsWith('```json')) rawText = rawText.replace(/^```json\s*/, '').replace(/```\s*$/, '');
+          else if (rawText.startsWith('```')) rawText = rawText.replace(/^```\s*/, '').replace(/```\s*$/, '');
+
+          const parsed = JSON.parse(rawText);
+          const isSynthetic = Boolean(parsed.isAiGeneratedOrSynthetic);
+          const isCivic = parsed.isCivicRelated !== false;
+          const isValid = parsed.isValidEvidence !== false && !isSynthetic && isCivic;
+
+          return {
+            domain: parsed.domain || (isValid ? 'CIVIC_INFRASTRUCTURE' : 'INVALID_SUBMISSION'),
+            subDomain: parsed.subDomain || (isValid ? 'ROADS' : 'NON_CIVIC_OR_SYNTHETIC'),
+            problemType: parsed.problemType || (isValid ? 'Pothole & Surface Damage' : (isSynthetic ? 'Synthetic / AI-Generated Image' : 'Non-Civic Content')),
+            title: parsed.title || parsed.problemType || 'Civic Infrastructure Defect',
+            generatedDescription: parsed.generatedDescription || parsed.explanation || (isValid ? 'Visual analysis confirmed defect requiring municipal action.' : 'Image does not meet authentic civic evidence standards.'),
+            severity: parsed.severity || (isValid ? 'HIGH' : 'LOW'),
+            severityScore: Number(parsed.severityScore) || (isValid ? 70 : 0),
+            urgency: parsed.urgency || (isValid ? 'HIGH' : 'LOW'),
+            safetyRisk: parsed.safetyRisk || (isValid ? 'MODERATE' : 'NONE'),
+            affectedPopulation: parsed.affectedPopulation || (isValid ? 'COMMUNITY' : 'FEW'),
+            environmentalImpact: parsed.environmentalImpact || 'LOW',
+            suggestedDepartment: parsed.suggestedDepartment || 'Roads, Bridges & Infrastructure',
+            confidence: Math.min(0.99, Math.max(0.65, Number(parsed.confidence) || 0.96)),
+            evidenceQuality: parsed.evidenceQuality || (isValid ? 'EXCELLENT' : 'POOR'),
+            needsHumanReview: Boolean(parsed.needsHumanReview || !isValid),
+            isCivicRelated: isCivic,
+            isAiGeneratedOrSynthetic: isSynthetic,
+            isValidEvidence: isValid,
+            rejectionReason: parsed.rejectionReason || (!isValid ? 'Image does not qualify as authentic real-world civic evidence.' : undefined),
+            detectedSubject: parsed.detectedSubject || parsed.problemType,
+            explanation: parsed.explanation || 'Visual defect verified via Gemini Flash analysis.',
+            timestamp: new Date().toISOString(),
+            model: 'gemini-3.6-flash',
+            promptVersion: 2
+          };
+        }
+      }
+    } catch (directErr) {
+      console.warn('Direct Gemini Flash browser call encountered:', directErr);
+    }
+  }
+
+  // Strategy 2: Call backend proxy if reachable
+  try {
     const res = await fetch('/api/analyze-evidence', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -422,11 +641,12 @@ export async function analyzeCivicProblem(
         description: description || '',
         imageBase64,
         mimeType,
-        apiKey: storedApiKey || undefined
+        apiKey: activeApiKey || undefined
       })
     });
 
-    if (res.ok) {
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
       const json = await res.json();
       if (!json.fallback && json.data) {
         const parsed = json.data;
@@ -466,7 +686,7 @@ export async function analyzeCivicProblem(
     console.info('Server analyze-evidence endpoint not reachable, running vision forensic heuristic:', err);
   }
 
-  // Graceful deterministic vision forensic fallback
+  // Strategy 3: Graceful deterministic vision forensic fallback (identifies synthetic, portraits, documents, & real defects)
   return generateHeuristicAnalysis(description, imageFile);
 }
 
