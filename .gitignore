@@ -1,9 +1,22 @@
+# Dependencies
 node_modules/
-build/
 dist/
+build/
 coverage/
-.DS_Store
-*.log
-.env*
+
+# Environment and Secrets (Never commit secrets to git!)
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 !.env.example
+
+# Logs and OS files
+*.log
+.DS_Store
+Thumbs.db
+
+# Firebase local cache
 .firebase/
