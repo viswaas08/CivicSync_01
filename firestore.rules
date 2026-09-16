@@ -55,25 +55,30 @@ service cloud.firestore {
       allow write: if isAuthenticated();
     }
 
-    // System settings & GIS
+    // System settings & GIS (Authoritative datasets: Public Read, Admin Write Only)
     match /systemSettings/{settingId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAuthenticated() && request.auth.token.admin == true;
     }
 
     match /gisWards/{wardId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAuthenticated() && request.auth.token.admin == true;
     }
 
     match /departments/{deptId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAuthenticated() && request.auth.token.admin == true;
     }
 
     match /gisDatasets/{datasetId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAuthenticated() && request.auth.token.admin == true;
     }
 
     match /jurisdictionCoverage/{covId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAuthenticated() && request.auth.token.admin == true;
     }
   }
 }
