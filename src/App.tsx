@@ -12,6 +12,7 @@ import { GovernmentPortal } from './pages/GovernmentPortal';
 import { CommunityPortal } from './pages/CommunityPortal';
 import { InnovationPortal } from './pages/InnovationPortal';
 import { AdminPortal } from './pages/AdminPortal';
+import { UtilityCoordinationPage } from './pages/UtilityCoordinationPage';
 import { CivicAdvisorModal } from './components/CivicAdvisorModal';
 import { UnifiedLoginModal } from './components/UnifiedLoginModal';
 import { Complaint } from './types';
@@ -111,12 +112,14 @@ function CivicAppContent() {
           <CitizenDashboard
             onSelectComplaint={(c) => setSelectedComplaint(c)}
             onOpenReportModal={handleOpenReportModal}
+            onOpenLoginModal={() => setIsLoginModalOpen(true)}
           />
         )}
 
         {currentView === 'government' && (
           <GovernmentPortal
             onSelectComplaint={(c) => setSelectedComplaint(c)}
+            onOpenLoginModal={() => setIsLoginModalOpen(true)}
           />
         )}
 
@@ -132,6 +135,10 @@ function CivicAppContent() {
 
         {currentView === 'admin' && (
           <AdminPortal />
+        )}
+
+        {currentView === 'utility-coordination' && (
+          <UtilityCoordinationPage />
         )}
       </main>
 

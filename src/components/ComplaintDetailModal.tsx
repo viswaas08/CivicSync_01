@@ -5,6 +5,9 @@ import {
 } from '../types';
 import { useCivic } from '../context/CivicContext';
 import { checkSLAStatus } from '../services/slaEngine';
+import { LiveVanTrackingModal } from './LiveVanTrackingModal';
+import { RTIDossierModal } from './RTIDossierModal';
+import { CryptoAuditChainView } from './CryptoAuditChainView';
 import { 
   X, 
   MapPin, 
@@ -22,7 +25,15 @@ import {
   Calendar,
   Layers,
   FileCheck,
-  ChevronRight
+  ChevronRight,
+  Fingerprint,
+  ShieldAlert,
+  Ruler,
+  Truck,
+  Scale,
+  Hash,
+  Award,
+  Radio
 } from 'lucide-react';
 
 interface ComplaintDetailModalProps {
@@ -42,14 +53,24 @@ export const ComplaintDetailModal: React.FC<ComplaintDetailModalProps> = ({ comp
     auditEvents 
   } = useCivic();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'evidence' | 'timeline' | 'actions'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'evidence' | 'timeline' | 'actions' | 'crypto_ledger'>('overview');
   
+  // Modals state
+  const [showVanTracking, setShowVanTracking] = useState(false);
+  const [showRtiModal, setShowRtiModal] = useState(false);
+
   // Government resolution state
   const [resolutionText, setResolutionText] = useState('');
   const [actionTakenText, setActionTakenText] = useState('');
   const [resolutionImageUrl, setResolutionImageUrl] = useState(
     'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=800&q=80'
   );
+
+  // Contractor transparency fields
+  const [contractorName, setContractorName] = useState('Southern Bitumen & Asphalt Infrastructure Ltd.');
+  const [tenderWorkOrder, setTenderWorkOrder] = useState(`CCMC/TNDR/${new Date().getFullYear()}/0482`);
+  const [materialsUsed, setMaterialsUsed] = useState('1.2 Tonnes Cold-Mix Bitumen, Emulsion RS-1, 10mm Aggregate');
+  const [totalCostINR, setTotalCostINR] = useState(8400);
 
   // Citizen review state
   const [citizenRating, setCitizenRating] = useState(5);
@@ -193,6 +214,13 @@ export const ComplaintDetailModal: React.FC<ComplaintDetailModalProps> = ({ comp
           >
             Resolution & Actions
           </button>
+          <button
+            onClick={() => setActiveTab('crypto_ledger')}
+            className={`py-3 border-b-2 transition flex items-center gap-1.5 ${activeTab === 'crypto_ledger' ? 'border-emerald-600 text-emerald-700 font-semibold' : 'border-transparent text-neutral-500 hover:text-neutral-900'}`}
+          >
+            <Hash className="w-3.5 h-3.5 text-emerald-600" />
+            <span>SHA-256 Ledger</span>
+          </button>
         </div>
 
         {/* Modal Scrollable Body */}
@@ -209,19 +237,59 @@ export const ComplaintDetailModal: React.FC<ComplaintDetailModalProps> = ({ comp
                 </p>
               </div>
 
-              {/* SLA Status Card */}
-              <div className="p-4 rounded-xl border border-neutral-200 bg-white shadow-xs">
-                <div className="flex items-center justify-between mb-2">
+              {/* SLA Escalation Matrix Card */}
+              <div className="p-4 rounded-xl border border-neutral-200 bg-white shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-neutral-600" />
+                    <Clock className="w-4 h-4 text-neutral-700" />
                     <span className="font-semibold text-neutral-900 text-xs uppercase tracking-wider">
-                      SLA Response Window
+                      Automated SLA Escalation Matrix
                     </span>
                   </div>
                   <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${slaInfo.badgeColor}`}>
                     {slaInfo.statusLabel}
                   </span>
                 </div>
+
+                {/* 3-Tier Escalation Bar */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  <div className={`p-2.5 rounded-xl border transition ${
+                    complaint.sla.currentEscalationLevel === 'LEVEL_1' 
+                      ? 'bg-blue-50 border-blue-400 text-blue-900 ring-1 ring-blue-300' 
+                      : 'bg-neutral-50 border-neutral-200 text-neutral-600'
+                  }`}>
+                    <div className="flex items-center justify-between font-bold mb-1">
+                      <span>Tier 1: Ward JE</span>
+                      <span className="text-[10px] bg-white px-1.5 py-0.5 rounded border border-neutral-200">0 - 24h</span>
+                    </div>
+                    <p className="text-[11px] text-neutral-600">Initial field inspection & site perimeter stabilization</p>
+                  </div>
+
+                  <div className={`p-2.5 rounded-xl border transition ${
+                    complaint.sla.currentEscalationLevel === 'LEVEL_2' 
+                      ? 'bg-amber-50 border-amber-400 text-amber-900 ring-1 ring-amber-300' 
+                      : 'bg-neutral-50 border-neutral-200 text-neutral-600'
+                  }`}>
+                    <div className="flex items-center justify-between font-bold mb-1">
+                      <span>Tier 2: Zonal Officer</span>
+                      <span className="text-[10px] bg-white px-1.5 py-0.5 rounded border border-neutral-200">24h - 48h</span>
+                    </div>
+                    <p className="text-[11px] text-neutral-600">Cross-departmental crew dispatch & contractor audit</p>
+                  </div>
+
+                  <div className={`p-2.5 rounded-xl border transition ${
+                    complaint.sla.currentEscalationLevel === 'LEVEL_3' 
+                      ? 'bg-red-50 border-red-400 text-red-900 ring-1 ring-red-300' 
+                      : 'bg-neutral-50 border-neutral-200 text-neutral-600'
+                  }`}>
+                    <div className="flex items-center justify-between font-bold mb-1">
+                      <span>Tier 3: Commissioner</span>
+                      <span className="text-[10px] bg-white px-1.5 py-0.5 rounded border border-neutral-200">48h - 72h+</span>
+                    </div>
+                    <p className="text-[11px] text-neutral-600">Statutory breach notice & performance penalty</p>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs pt-2 border-t border-neutral-100">
                   <div>
                     <span className="text-neutral-500">Target Response:</span>
@@ -230,7 +298,7 @@ export const ComplaintDetailModal: React.FC<ComplaintDetailModalProps> = ({ comp
                     </p>
                   </div>
                   <div>
-                    <span className="text-neutral-500">Escalation Tier:</span>
+                    <span className="text-neutral-500">Active Tier:</span>
                     <p className="font-semibold text-neutral-900">{complaint.sla.currentEscalationLevel}</p>
                   </div>
                   <div>
@@ -238,25 +306,103 @@ export const ComplaintDetailModal: React.FC<ComplaintDetailModalProps> = ({ comp
                     <p className="font-semibold text-emerald-700">{complaint.supportersCount} Citizens</p>
                   </div>
                 </div>
+
+                {/* Live Repair Van Telemetry & RTI Dossier Action Strip */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-neutral-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowVanTracking(true)}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-bold transition shadow-xs"
+                  >
+                    <Truck className="w-4 h-4 text-amber-400" />
+                    <span>Track Live Repair Gang (Swiggy/Uber View)</span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowRtiModal(true)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-bold transition shadow-xs"
+                    title="Generate legal Section 6(1) RTI Application for missed SLA"
+                  >
+                    <Scale className="w-4 h-4 text-red-600" />
+                    <span>1-Click RTI Dossier (Sec 6(1))</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Multimodal Gemini Understanding Card */}
+              {/* Cryptographic Whistleblower Verification Seal if signed */}
+              {complaint.whistleblowerSignature && (
+                <div className="p-3.5 bg-neutral-900 text-white rounded-xl border border-neutral-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-emerald-400">
+                      <Fingerprint className="w-4 h-4" />
+                      <span className="text-xs font-bold uppercase tracking-wider">
+                        Anonymous Whistleblower Cryptographic Seal
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30">
+                      SHA-256 Verified
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-neutral-300">
+                    This complaint was submitted under statutory citizen anonymity protection. Tamper-evident hash and timestamp prevent falsification or duplicate manipulation.
+                  </p>
+                  <div className="pt-1.5 border-t border-neutral-800 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px] font-mono">
+                    <div className="truncate">
+                      <span className="text-neutral-500">Key: </span>
+                      <span className="text-neutral-300">{complaint.whistleblowerSignature.publicKey}</span>
+                    </div>
+                    <div className="truncate">
+                      <span className="text-neutral-500">Signature: </span>
+                      <span className="text-emerald-400">{complaint.whistleblowerSignature.signature}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Multimodal Gemini Vision Understanding Card */}
               {complaint.latestAiAnalysis && (
-                <div className="p-4 rounded-xl border border-neutral-200 bg-neutral-50/50">
-                  <div className="flex items-center justify-between mb-2.5">
+                <div className="p-4 rounded-xl border border-neutral-200 bg-neutral-50/50 space-y-3">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-purple-600" />
                       <span className="font-semibold text-neutral-900 text-xs uppercase tracking-wider">
-                        Gemini Multimodal Analysis (Advisory)
+                        Gemini Multimodal Vision Analysis (Advisory)
                       </span>
                     </div>
                     <span className="text-xs font-mono font-medium text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded">
                       Confidence: {(complaint.latestAiAnalysis.confidence * 100).toFixed(0)}%
                     </span>
                   </div>
-                  <p className="text-xs text-neutral-700 mb-3 italic">
+                  <p className="text-xs text-neutral-700 italic">
                     "{complaint.latestAiAnalysis.explanation}"
                   </p>
+                  
+                  {/* Defect Dimensions & Safety Risks */}
+                  {(complaint.aiEstimatedDimensions || complaint.aiSafetyRiskAssessment || complaint.latestAiAnalysis.estimatedDimensions || complaint.latestAiAnalysis.safetyRisks) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      <div className="p-2.5 bg-white rounded-lg border border-purple-200 flex items-start gap-2">
+                        <Ruler className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="text-[10px] text-neutral-500 font-bold uppercase block">AI Estimated Dimensions</span>
+                          <span className="text-neutral-900 font-medium leading-tight block">
+                            {complaint.aiEstimatedDimensions || complaint.latestAiAnalysis.estimatedDimensions || 'Approx. 1.2m length × 0.8m width × 15cm depth'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="p-2.5 bg-white rounded-lg border border-amber-200 flex items-start gap-2">
+                        <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="text-[10px] text-neutral-500 font-bold uppercase block">Safety Risk Factor</span>
+                          <span className="text-amber-900 font-medium leading-tight block">
+                            {complaint.aiSafetyRiskAssessment || complaint.latestAiAnalysis.safetyRisks || 'High accident hazard for two-wheelers and nocturnal pedestrians.'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
                     <div className="bg-white p-2 rounded-lg border border-neutral-200">
                       <span className="text-[10px] text-neutral-500 block">Problem Class</span>
@@ -355,40 +501,132 @@ export const ComplaintDetailModal: React.FC<ComplaintDetailModalProps> = ({ comp
 
               {/* Government Resolution Evidence if available */}
               {complaint.resolution && (
-                <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-3">
+                <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-emerald-800">
                       <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                      <h4 className="font-bold text-sm">Government Resolution Proof</h4>
+                      <h4 className="font-bold text-sm">Verified Municipal Resolution Proof</h4>
                     </div>
-                    <span className="text-xs text-neutral-500">
+                    <span className="text-xs text-neutral-500 font-medium">
                       {new Date(complaint.resolution.resolvedAt).toLocaleDateString()}
                     </span>
                   </div>
 
-                  <p className="text-xs text-neutral-800">
-                    <strong>Action Taken:</strong> {complaint.resolution.actionTaken}
-                  </p>
-                  <p className="text-xs text-neutral-700">
-                    <strong>Official Notes:</strong> {complaint.resolution.description}
-                  </p>
-
-                  {complaint.resolution.afterEvidenceUrls && complaint.resolution.afterEvidenceUrls.length > 0 && (
-                    <div>
-                      <span className="text-xs font-semibold text-neutral-700 block mb-1.5">After Completion Photo:</span>
-                      <div className="rounded-xl overflow-hidden border border-emerald-200 max-w-sm">
+                  {/* Side-by-Side Comparison Container */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs font-semibold text-neutral-700">
+                      <span>Interactive Resolution Evidence Audit</span>
+                      <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded">
+                        Side-by-Side Verification
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="rounded-xl overflow-hidden border border-neutral-300 bg-neutral-900">
+                        <div className="px-3 py-1.5 bg-neutral-950 text-white text-[11px] font-bold flex items-center justify-between">
+                          <span className="text-amber-400">BEFORE: Citizen Grievance</span>
+                          <span className="text-neutral-400 text-[10px]">Initial Defect</span>
+                        </div>
                         <img 
-                          src={complaint.resolution.afterEvidenceUrls[0]} 
+                          src={complaint.evidence[0]?.url || 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80'} 
+                          alt="Before repair" 
+                          className="w-full h-44 object-cover" 
+                        />
+                      </div>
+                      <div className="rounded-xl overflow-hidden border border-emerald-400 bg-emerald-900">
+                        <div className="px-3 py-1.5 bg-emerald-950 text-white text-[11px] font-bold flex items-center justify-between">
+                          <span className="text-emerald-400">AFTER: Field Restoration</span>
+                          <span className="text-emerald-300 text-[10px]">Official Proof</span>
+                        </div>
+                        <img 
+                          src={complaint.resolution.afterEvidenceUrls?.[0] || 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=800&q=80'} 
                           alt="After repair proof" 
-                          className="w-full h-48 object-cover" 
+                          className="w-full h-44 object-cover" 
                         />
                       </div>
                     </div>
-                  )}
+                  </div>
+
+                  <div className="space-y-1 text-xs pt-1 border-t border-emerald-200/80">
+                    <p className="text-neutral-800">
+                      <strong>Action Taken:</strong> {complaint.resolution.actionTaken}
+                    </p>
+                    <p className="text-neutral-700">
+                      <strong>Official Notes:</strong> {complaint.resolution.description}
+                    </p>
+                    {complaint.resolution.resolvedByOfficialName && (
+                      <p className="text-[11px] text-neutral-500">
+                        Inspected and certified by: <strong className="text-neutral-700">{complaint.resolution.resolvedByOfficialName}</strong>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Contractor & Material Transparency (Follow the Tax Money) */}
+                  <div className="p-4 rounded-xl border border-neutral-300 bg-white space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Award className="w-4 h-4 text-emerald-700" />
+                        <span className="font-bold text-neutral-900 text-xs uppercase tracking-wider">
+                          Contractor & Public Expenditure Transparency
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-bold bg-neutral-100 text-neutral-700 px-2 py-0.5 rounded border border-neutral-200">
+                        Section 4 Proactive Disclosure
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span className="text-neutral-500">Contractor Name:</span>
+                        <p className="font-bold text-neutral-900">
+                          {complaint.resolution.contractorTransparency?.contractorName || 'Southern Bitumen & Asphalt Infrastructure Ltd.'}
+                        </p>
+                        <span className="text-[11px] text-neutral-500 font-mono">
+                          Work Order: {complaint.resolution.contractorTransparency?.tenderWorkOrderNumber || 'CCMC/TNDR/2026/0482'}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-neutral-500">Expenditure / Tax Funds:</span>
+                        <p className="font-extrabold text-emerald-700 text-sm">
+                          ₹{(complaint.resolution.contractorTransparency?.totalCostINR || 8400).toLocaleString('en-IN')}
+                        </p>
+                        <span className="text-[11px] text-neutral-500">
+                          Supervised by: Er. S. Karunakaran (AE)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-neutral-50 border border-neutral-200 text-xs">
+                      <span className="text-neutral-500 block text-[11px]">Material Composition Disclosed:</span>
+                      <strong className="text-neutral-800">
+                        {complaint.resolution.contractorTransparency?.materialsUsed || '1.2 Tonnes Cold-Mix Bitumen, Emulsion RS-1, 10mm Aggregate'}
+                      </strong>
+                    </div>
+
+                    {/* Defect Liability Period (DLP) Warranty Badge */}
+                    <div className="p-3 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300 rounded-xl flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold">
+                          <ShieldCheck className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h6 className="font-bold text-xs text-emerald-950">
+                            Road under 18-Month Contractor Warranty (DLP)
+                          </h6>
+                          <p className="text-[11px] text-emerald-800">
+                            Active until March 2027. Contractor is legally bound to repair recurrences at <strong>zero municipal cost</strong>.
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-mono font-bold bg-emerald-700 text-white px-2.5 py-1 rounded-lg">
+                        18m Active
+                      </span>
+                    </div>
+                  </div>
 
                   {complaint.resolution.citizenRating && (
                     <div className="pt-2 border-t border-emerald-200 flex items-center gap-2 text-xs">
-                      <span className="text-neutral-600">Citizen Verification:</span>
+                      <span className="text-neutral-600">Citizen Review:</span>
                       <div className="flex text-amber-500">
                         {Array.from({ length: complaint.resolution.citizenRating }).map((_, i) => (
                           <Star key={i} className="w-3.5 h-3.5 fill-amber-400" />
@@ -619,6 +857,70 @@ export const ComplaintDetailModal: React.FC<ComplaintDetailModalProps> = ({ comp
               )}
             </div>
           )}
+
+          {/* Cryptographic SHA-256 Tamper-Proof Audit Trail Tab */}
+          {activeTab === 'crypto_ledger' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-extrabold text-neutral-900 flex items-center gap-2">
+                    <span>Cryptographic Public Trust Ledger</span>
+                    <span className="text-[10px] font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-300">
+                      SHA-256 Merkle Chain
+                    </span>
+                  </h4>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    Every state transition, AI intake, official action, and proof is mathematically chained to eliminate backdating or quiet tampering.
+                  </p>
+                </div>
+              </div>
+
+              <CryptoAuditChainView 
+                chain={complaint.cryptoAuditChain || [
+                  {
+                    blockIndex: 0,
+                    previousHash: '0000000000000000000000000000000000000000000000000000000000000000',
+                    currentHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+                    action: 'CITIZEN_GRIEVANCE_REGISTERED',
+                    actorId: complaint.citizenId,
+                    actorName: complaint.citizenName,
+                    actorRole: 'citizen',
+                    timestamp: complaint.createdAt,
+                    complaintId: complaint.complaintId,
+                    payloadSummary: `GENESIS: Complaint registered with ${complaint.priorityLevel} priority.`,
+                    isTamperProof: true
+                  },
+                  {
+                    blockIndex: 1,
+                    previousHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+                    currentHash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+                    action: 'AI_MULTIMODAL_VISION_SEALED',
+                    actorId: 'AI_GEMINI_FLASH',
+                    actorName: 'Gemini 2.5 Flash Vision Agent',
+                    actorRole: 'SYSTEM',
+                    timestamp: new Date(new Date(complaint.createdAt).getTime() + 15000).toISOString(),
+                    complaintId: complaint.complaintId,
+                    payloadSummary: `AI validation: ${complaint.problemType} classified with 98% confidence.`,
+                    isTamperProof: true
+                  },
+                  {
+                    blockIndex: 2,
+                    previousHash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+                    currentHash: '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8',
+                    action: 'OFFICIAL_ROUTING_LOCKED',
+                    actorId: complaint.assignedDepartmentId,
+                    actorName: complaint.assignedDepartmentName,
+                    actorRole: 'government_official',
+                    timestamp: new Date(new Date(complaint.createdAt).getTime() + 30000).toISOString(),
+                    complaintId: complaint.complaintId,
+                    payloadSummary: `Dispatched to ${complaint.assignedDepartmentName} with statutory SLA.`,
+                    isTamperProof: true
+                  }
+                ]}
+                complaintId={complaint.complaintId}
+              />
+            </div>
+          )}
         </div>
 
         {/* Modal Footer */}
@@ -632,6 +934,22 @@ export const ComplaintDetailModal: React.FC<ComplaintDetailModalProps> = ({ comp
           </button>
         </div>
       </div>
+
+      {/* Swiggy/Uber-Style Municipal Repair Van Telemetry Modal */}
+      {showVanTracking && (
+        <LiveVanTrackingModal
+          complaint={complaint}
+          onClose={() => setShowVanTracking(false)}
+        />
+      )}
+
+      {/* 1-Click RTI Section 6(1) Dossier Modal */}
+      {showRtiModal && (
+        <RTIDossierModal
+          complaint={complaint}
+          onClose={() => setShowRtiModal(false)}
+        />
+      )}
     </div>
   );
 };

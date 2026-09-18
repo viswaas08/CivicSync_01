@@ -785,6 +785,8 @@ Respond strictly with a single JSON object adhering to this schema:
   "problemType": string,
   "title": string,
   "generatedDescription": string,
+  "estimatedDimensions": string,
+  "safetyRisks": string,
   "severity": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
   "severityScore": number,
   "urgency": "LOW" | "MEDIUM" | "HIGH" | "IMMEDIATE",

@@ -120,6 +120,8 @@ export interface GeminiAnalysisResult {
   detectedSubject?: string;
   title?: string;
   generatedDescription?: string;
+  estimatedDimensions?: string;
+  safetyRisks?: string;
   explanation: string;
   timestamp: string;
   model: string;
@@ -168,6 +170,69 @@ export interface ComplaintSLA {
   currentEscalationLevel: 'OFFICER' | 'SUPERVISOR' | 'DEPARTMENT_HEAD' | 'DISTRICT_AUTHORITY' | 'STATE_AUTHORITY';
 }
 
+export interface CoSignerRecord {
+  citizenId: string;
+  citizenNameMasked: string;
+  coSignedAt: string;
+  wardName?: string;
+}
+
+export interface MasterIncidentCluster {
+  isMasterIncident: boolean;
+  masterIncidentId?: string;
+  coSignersCount: number;
+  coSigners: CoSignerRecord[];
+  clusterRadiusMeters: number;
+  incidentTitle?: string;
+}
+
+export interface RepairVanTelemetry {
+  vehicleNumber: string;
+  crewName: string;
+  crewContact: string;
+  vehicleType: 'JET_PATCHER_TRUCK' | 'SEWAGE_SUCTION_JETTING' | 'STREETLIGHT_HYDRAULIC_CRANE' | 'DISILTING_EXCAVATOR' | 'RAPID_RESPONSE_VAN';
+  currentLocation: {
+    latitude: number;
+    longitude: number;
+  };
+  destinationLocation: {
+    latitude: number;
+    longitude: number;
+  };
+  etaMinutes: number;
+  status: 'DISPATCHED' | 'EN_ROUTE' | 'ON_SITE_GEOFENCED' | 'COMPLETED';
+  distanceToSiteMeters: number;
+  isWithinGeofence40m: boolean;
+  dispatchedAt: string;
+  checkedInAt?: string;
+}
+
+export interface ContractorTransparency {
+  contractorName: string;
+  contractorRegistrationId: string;
+  tenderWorkOrderNumber: string;
+  materialsUsed: string; // e.g. "1.2 Tonnes Cold-Mix Bitumen, Emulsion RS-1"
+  totalCostINR: number;
+  supervisedByEngineer: string;
+  dlpWarrantyMonths: number; // e.g. 18 months
+  dlpExpiryDate: string; // ISO date
+  isDlpWarrantyActive: boolean;
+}
+
+export interface CryptoAuditBlock {
+  blockIndex: number;
+  previousHash: string;
+  currentHash: string;
+  action: string;
+  actorId: string;
+  actorName: string;
+  actorRole: UserRole | 'SYSTEM';
+  timestamp: string;
+  complaintId: string;
+  payloadSummary: string;
+  isTamperProof: boolean;
+}
+
 export interface ResolutionData {
   description: string;
   actionTaken: string;
@@ -180,6 +245,8 @@ export interface ResolutionData {
   citizenFeedback?: string;
   citizenAction?: 'ACCEPTED' | 'APPEALED';
   appealReason?: string;
+  contractorTransparency?: ContractorTransparency;
+  resolutionVanTelemetry?: RepairVanTelemetry;
 }
 
 export interface Complaint {
@@ -220,6 +287,12 @@ export interface Complaint {
   isInnovationEligible: boolean;
   innovationChallengeId?: string;
   isDemo: boolean;
+  whistleblowerSignature?: CryptographicSignature;
+  aiEstimatedDimensions?: string;
+  aiSafetyRiskAssessment?: string;
+  masterIncidentCluster?: MasterIncidentCluster;
+  activeVanTelemetry?: RepairVanTelemetry;
+  cryptoAuditChain?: CryptoAuditBlock[];
   createdAt: string;
   updatedAt: string;
 }
@@ -489,3 +562,116 @@ export interface InnovationSolution {
   createdAt: string;
 }
 
+export interface CryptographicSignature {
+  algorithm: 'SHA-256';
+  signatureHash: string;
+  signedPayloadHash: string;
+  timestamp: string;
+  keyFingerprint: string;
+}
+
+export interface UrbanLocalBodyInfo {
+  ulbId: string;
+  ulbName: string;
+  stateId: string;
+  stateName: string;
+  districtId: string;
+  districtName: string;
+  type: 'MUNICIPAL_CORPORATION' | 'MUNICIPALITY' | 'NAGAR_PANCHAYAT';
+  officialWardCount: number;
+  delimitationGazetteDate: string;
+  boundaryVersionId: string;
+  gazetteNotificationRef: string;
+  centerCoordinates: [number, number]; // [lat, lng]
+  escalationHierarchy: {
+    tier1: string; // e.g. "Junior Engineer (JE / AE)"
+    tier2: string; // e.g. "Assistant Executive Engineer (AEE) / Zonal Commissioner"
+    tier3: string; // e.g. "Chief Municipal Engineer / Municipal Commissioner"
+  };
+  wards: Array<{
+    wardNumber: string;
+    wardName: string;
+    zoneName?: string;
+    centroid: [number, number]; // [lat, lng]
+  }>;
+}
+
+export interface IndianStateInfo {
+  stateId: string;
+  stateName: string;
+  isUnionTerritory: boolean;
+  capital: string;
+  ulbs: UrbanLocalBodyInfo[];
+}
+
+export type UtilityAgencyType = 
+  | 'WATER_SUPPLY' 
+  | 'ELECTRICITY' 
+  | 'SEWERAGE' 
+  | 'TELECOM_OFC' 
+  | 'GAS_PIPELINE' 
+  | 'METRO_TRANSIT' 
+  | 'PWD_HIGHWAYS';
+
+export type ExcavationPermitStatus = 
+  | 'FILED_PENDING_REVIEW' 
+  | 'CONFLICT_BLOCKED' 
+  | 'NOC_APPROVED' 
+  | 'TRENCHING_ACTIVE' 
+  | 'REINSTATEMENT_SUBMITTED' 
+  | 'CITIZEN_AUDITING' 
+  | 'ESCROW_RELEASED' 
+  | 'ESCROW_FORFEITED';
+
+export interface CitizenReinstatementAudit {
+  auditId: string;
+  permitId: string;
+  citizenUid: string;
+  citizenName: string;
+  smoothnessRating: number; // 1 to 5
+  debrisCleared: boolean;
+  sunkenTrenchDefect: boolean;
+  photoEvidenceUrl: string;
+  remarks: string;
+  timestamp: string;
+}
+
+export interface ExcavationPermit {
+  permitId: string;
+  permitNumber: string;
+  agencyName: string;
+  agencyType: UtilityAgencyType;
+  roadStretchName: string;
+  ulbId: string;
+  ulbName: string;
+  wardNumber: string;
+  startCoordinates: [number, number]; // [lat, lng]
+  endCoordinates: [number, number];
+  lengthMeters: number;
+  depthMeters: number;
+  roadSurfaceType: 'BITUMINOUS_ASPHALT' | 'CEMENT_CONCRETE' | 'INTERLOCKING_PAVER' | 'EARTHEN_SHOULDER';
+  applicationDate: string;
+  plannedStartDate: string;
+  plannedEndDate: string;
+  purposeDescription: string;
+  trafficPoliceNocNumber: string;
+  trafficDiversionPlan: string;
+  status: ExcavationPermitStatus;
+  escrowAmountInInr: number;
+  escrowStatus: 'HELD_IN_ESCROW' | 'UNDER_CITIZEN_AUDIT' | 'RELEASED_TO_UTILITY' | 'FORFEITED_TO_MUNICIPALITY';
+  jointCoordinationWithAgencyIds?: string[];
+  reinstatementProofUrl?: string;
+  reinstatementSubmittedAt?: string;
+  citizenAudits?: CitizenReinstatementAudit[];
+  conflictNotice?: string;
+}
+
+export interface SpatialConflictReport {
+  hasConflict: boolean;
+  conflictingPermitIds: string[];
+  conflictingPermits: ExcavationPermit[];
+  conflictSeverity: 'BLOCKING_MORATORIUM' | 'COORDINATION_ADVISORY' | 'NONE';
+  daysDifference: number;
+  moratoriumReason: string;
+  recommendedAction: string;
+}

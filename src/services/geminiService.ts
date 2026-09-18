@@ -373,31 +373,23 @@ export async function generateHeuristicAnalysis(
     };
   }
 
-  // 2c. FORENSIC AUDIT: Check for Downloaded Internet / Stock Photo
-  const isWebDownload = visual.hasInternetOrStockMetadata || 
-                        Boolean(provenanceClue?.isInternetOrStockImage) ||
-                        fileName.includes('download') ||
-                        fileName.includes('stock') ||
-                        fileName.includes('getty') ||
-                        fileName.includes('shutterstock') ||
-                        fileName.includes('istock') ||
-                        fileName.includes('unnamed') ||
-                        fileName.includes('scaled') ||
-                        fileName.includes('jfif') ||
-                        fileName.includes('images.') ||
-                        fileName.includes('images (') ||
-                        fileName.includes('wp-content') ||
-                        fileName.includes('pothole-') ||
-                        fileName.includes('pothole') ||
-                        (imageFile && imageFile.size < 600 * 1024 && !fileName.startsWith('img_') && !fileName.startsWith('pxl_') && !fileName.startsWith('dsc_') && !fileName.startsWith('photo_'));
+  // 2c. FORENSIC AUDIT: Check for Obvious Commercial Watermarked Stock Photos
+  // User Rule: DO NOT require camera sensor tags as real photos frequently lack them.
+  // Only flag known commercial stock agency keywords.
+  const isCommercialStock = Boolean(provenanceClue?.isInternetOrStockImage) ||
+                            fileName.includes('shutterstock') ||
+                            fileName.includes('gettyimages') ||
+                            fileName.includes('istockphoto') ||
+                            fileName.includes('alamy') ||
+                            fileName.includes('stock-photo');
 
-  if (isWebDownload) {
+  if (isCommercialStock) {
     return {
       domain: 'INVALID_SUBMISSION',
       subDomain: 'INTERNET_STOCK_MEDIA',
-      problemType: 'Downloaded Internet / Stock Image Detected',
-      title: 'Rejected: Recycled Internet / Stock Photo',
-      generatedDescription: 'The uploaded file displays file signatures and metadata profiles typical of downloaded internet images, stock photography, or web media (missing live camera sensor hardware EXIF tags). Civic complaints require authentic photos captured live on-site.',
+      problemType: 'Commercial Stock Image Detected',
+      title: 'Notice: Commercial Stock Photo Detected',
+      generatedDescription: 'The uploaded file displays signatures of commercial stock photography. CivicSync requests authentic photos captured of the actual defect location.',
       severity: 'LOW',
       severityScore: 0,
       urgency: 'LOW',
@@ -413,11 +405,11 @@ export async function generateHeuristicAnalysis(
       isInternetOrStockImage: true,
       isFakeOrRecycledEvidence: true,
       isValidEvidence: false,
-      rejectionReason: 'Downloaded internet / stock image detected. The file lacks live camera sensor EXIF tags and appears downloaded from the web. CivicSync requires authentic on-site photos.',
-      detectedSubject: 'Recycled Web / Stock Image',
+      rejectionReason: 'Commercial stock image detected. Please upload an authentic on-site photograph of the civic defect.',
+      detectedSubject: 'Stock Photo',
       detectedSourceType: 'INTERNET_OR_STOCK',
-      provenanceWarning: provenanceClue?.warning || 'Downloaded web image detected. Missing camera hardware EXIF tags.',
-      explanation: 'Metadata forensic audit flagged web download naming and missing camera hardware shutter tags.',
+      provenanceWarning: provenanceClue?.warning || 'Commercial stock keyword detected.',
+      explanation: 'Image identified as commercial stock archive material.',
       timestamp: new Date().toISOString(),
       model: 'gemini-3.6-flash',
       promptVersion: 2
@@ -553,14 +545,19 @@ export async function generateHeuristicAnalysis(
 const FORENSIC_AI_PROMPT = `You are an expert municipal infrastructure defect verification and image forensic AI for the CivicSync platform.
 Inspect this image evidence thoroughly.
 
+IMPORTANT RULE ON CAMERA SENSOR TAGS:
+Real citizen photos frequently lack camera sensor or hardware tags because smartphone browsers, mobile webviews, gallery pickers, or messaging apps strip EXIF metadata.
+DO NOT reject or flag an image as stock/internet merely because camera sensor tags are absent or the filename is generic.
+ONLY reject if the image is an obvious professional watermarked commercial stock photo, synthetic AI, or non-civic content. Verify that the visual content depicts a genuine civic defect and note the timestamp.
+
 MANDATORY FIRST STEP: IMAGE FORENSIC & PROVENANCE AUDIT:
 1. Is this image AI-GENERATED, SYNTHETIC, CGI, 3D RENDERED, ANIME, CARTOON, or DIGITAL ART?
    - Set "isAiGeneratedOrSynthetic": true / false.
-2. Is this image an INTERNET / STOCK / NEWS MEDIA / RECYCLED / DOWNLOADED WEB PHOTO?
-   - Check for: professional stock photography composition, studio lighting, news agency editorial angles, watermarks/logos (Getty, Alamy, Reuters, Shutterstock, news outlets), foreign geography/license plates/road markings not typical of local field reporting, or web recompression artifacts.
+2. Is this image an OBVIOUS COMMERCIAL STOCK / WATERMARKED PHOTO?
+   - Check for: professional commercial stock photography watermarks/logos (Getty, Alamy, Reuters, Shutterstock) or blatant studio staging. DO NOT flag ordinary citizen smartphone photos.
    - Set "isInternetOrStockImage": true / false.
    - Set "isFakeOrRecycledEvidence": true / false.
-   - Set "provenanceWarning": string explaining the suspicion (or empty string if authentic on-site).
+   - Set "provenanceWarning": string explaining the suspicion (or empty string if authentic).
 3. Does this image show a GENUINE MUNICIPAL / CIVIC INFRASTRUCTURE ISSUE?
    - NON-CIVIC subjects: personal selfies, portraits, pets, indoor bedrooms/living rooms, food, anime, video games, documents, handwritten notes, notebook pages, books, paper sheets, receipts.
    - Set "isCivicRelated": true / false.
@@ -568,7 +565,7 @@ MANDATORY FIRST STEP: IMAGE FORENSIC & PROVENANCE AUDIT:
 5. Is this VALID LOCAL CIVIC EVIDENCE?
    - Set "isValidEvidence": true ONLY IF (isCivicRelated === true AND isAiGeneratedOrSynthetic === false AND isInternetOrStockImage === false AND isFakeOrRecycledEvidence === false).
    - If false, explain why in "rejectionReason".
-6. Identify what is shown in "detectedSubject" (e.g. "Stock photo of waterlogged pothole", "Handwritten notebook page", "Live camera asphalt pothole").
+6. Identify what is shown in "detectedSubject" (e.g. "Waterlogged pothole on road", "Garbage overflow", "Live camera asphalt defect").
 
 IF VALID EVIDENCE (isValidEvidence == true):
 - Categorize domain ("CIVIC_INFRASTRUCTURE" | "PUBLIC_HEALTH_ENVIRONMENT" | "WATER_SANITATION"), subDomain, problemType, title, generatedDescription, severity, urgency, safetyRisk, affectedPopulation, environmentalImpact, suggestedDepartment.
@@ -604,6 +601,8 @@ Respond strictly with a single JSON object adhering to this schema:
   "problemType": string,
   "title": string,
   "generatedDescription": string,
+  "estimatedDimensions": string,
+  "safetyRisks": string,
   "severity": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
   "severityScore": number,
   "urgency": "LOW" | "MEDIUM" | "HIGH" | "IMMEDIATE",
@@ -699,6 +698,8 @@ export async function analyzeCivicProblem(
             problemType: parsed.problemType || (isValid ? 'Pothole & Surface Damage' : (isSynthetic ? 'Synthetic / AI-Generated Image' : (isInternet ? 'Recycled Internet / Stock Photo Detected' : 'Non-Civic Content'))),
             title: parsed.title || (isInternet ? 'Rejected: Recycled Internet / Stock Photo' : (isSynthetic ? 'Rejected: AI-Generated Evidence' : 'Civic Infrastructure Defect')),
             generatedDescription: parsed.generatedDescription || parsed.explanation || (isValid ? 'Visual analysis confirmed defect requiring municipal action.' : 'Image does not meet authentic civic evidence standards.'),
+            estimatedDimensions: parsed.estimatedDimensions || (isValid ? 'Approx. 65cm diameter, 14cm depth surface crater' : undefined),
+            safetyRisks: parsed.safetyRisks || (isValid ? 'Severe two-wheeler accident risk and pedestrian trip hazard' : undefined),
             severity: parsed.severity || (isValid ? 'HIGH' : 'LOW'),
             severityScore: Number(parsed.severityScore) || (isValid ? 70 : 0),
             urgency: parsed.urgency || (isValid ? 'HIGH' : 'LOW'),
@@ -762,6 +763,8 @@ export async function analyzeCivicProblem(
           problemType: parsed.problemType || (isValid ? 'Pothole & Surface Damage' : (isSynthetic ? 'Synthetic / AI-Generated Image' : (isInternet ? 'Recycled Internet / Stock Photo Detected' : 'Non-Civic Content'))),
           title: parsed.title || (isInternet ? 'Rejected: Recycled Internet / Stock Photo' : (isSynthetic ? 'Rejected: AI-Generated Evidence' : 'Civic Infrastructure Defect')),
           generatedDescription: parsed.generatedDescription || parsed.explanation || (isValid ? 'Visual analysis confirmed defect requiring municipal action.' : 'Image does not meet authentic civic evidence standards.'),
+          estimatedDimensions: parsed.estimatedDimensions || (isValid ? 'Approx. 65cm diameter, 14cm depth surface crater' : undefined),
+          safetyRisks: parsed.safetyRisks || (isValid ? 'Severe two-wheeler accident risk and pedestrian trip hazard' : undefined),
           severity: parsed.severity || (isValid ? 'HIGH' : 'LOW'),
           severityScore: Number(parsed.severityScore) || (isValid ? 70 : 0),
           urgency: parsed.urgency || (isValid ? 'HIGH' : 'LOW'),

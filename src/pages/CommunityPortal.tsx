@@ -11,7 +11,9 @@ import {
   ShieldCheck, 
   Calendar,
   AlertCircle,
-  Sparkles
+  Sparkles,
+  Award,
+  Trees
 } from 'lucide-react';
 
 interface CommunityPortalProps {
@@ -90,6 +92,50 @@ export const CommunityPortal: React.FC<CommunityPortalProps> = ({ onSelectCompla
           <div className="text-right">
             <span className="text-xs text-neutral-500 block">Civic Impact Score</span>
             <span className="text-xl font-extrabold text-emerald-700">920 Pts</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Volunteer Milestones & Accreditations */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white p-3.5 rounded-xl border border-neutral-200 shadow-2xs">
+          <div className="flex items-center gap-1.5 text-neutral-500 mb-1">
+            <Award className="w-3.5 h-3.5 text-amber-500" />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Volunteer Hours</span>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-extrabold text-neutral-900">420+</span>
+            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">Gold Tier</span>
+          </div>
+        </div>
+        <div className="bg-white p-3.5 rounded-xl border border-neutral-200 shadow-2xs">
+          <div className="flex items-center gap-1.5 text-neutral-500 mb-1">
+            <Users className="w-3.5 h-3.5 text-blue-500" />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Canal Cleanups</span>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-extrabold text-blue-700">8 Cleaned</span>
+            <span className="text-[10px] text-blue-600 font-medium">Noyyal River</span>
+          </div>
+        </div>
+        <div className="bg-white p-3.5 rounded-xl border border-neutral-200 shadow-2xs">
+          <div className="flex items-center gap-1.5 text-neutral-500 mb-1">
+            <Trees className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Urban Greenery</span>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-extrabold text-emerald-700">650+</span>
+            <span className="text-[10px] text-emerald-600 font-medium">Native Saplings</span>
+          </div>
+        </div>
+        <div className="bg-white p-3.5 rounded-xl border border-neutral-200 shadow-2xs">
+          <div className="flex items-center gap-1.5 text-neutral-500 mb-1">
+            <CheckCircle2 className="w-3.5 h-3.5 text-purple-600" />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Escrow Grants</span>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-extrabold text-purple-700">₹85,000</span>
+            <span className="text-[10px] text-purple-600 font-medium">100% Disbursed</span>
           </div>
         </div>
       </div>

@@ -14,31 +14,51 @@ import {
   Star, 
   MapPin, 
   ArrowUpRight,
-  HeartHandshake
+  HeartHandshake,
+  Users,
+  Wifi,
+  RefreshCw,
+  Award
 } from 'lucide-react';
+import { getOfflineQueuedReports } from '../services/offlineStorage';
 
 interface CitizenDashboardProps {
   onSelectComplaint: (complaint: Complaint) => void;
   onOpenReportModal: () => void;
+  onOpenLoginModal?: () => void;
 }
 
 export const CitizenDashboard: React.FC<CitizenDashboardProps> = ({
   onSelectComplaint,
-  onOpenReportModal
+  onOpenReportModal,
+  onOpenLoginModal
 }) => {
-  const { currentUser, isAuthenticated, isProductionMode, complaints } = useCivic();
+  const { currentUser, isAuthenticated, isProductionMode, complaints, syncOfflineReports } = useCivic();
   const [activeTab, setActiveTab] = useState<'my_reports' | 'impact' | 'verification' | 'supported'>('my_reports');
 
   if (isProductionMode && (!isAuthenticated || currentUser.uid === 'guest-cit-001')) {
     return (
-      <div className="max-w-2xl mx-auto my-16 p-8 bg-white border border-neutral-200 rounded-2xl shadow-sm text-center space-y-4">
-        <div className="w-16 h-16 rounded-2xl bg-neutral-100 text-neutral-800 flex items-center justify-center mx-auto">
-          <User className="w-8 h-8" />
+      <div className="max-w-2xl mx-auto my-16 p-8 bg-white border border-neutral-200 rounded-2xl shadow-sm text-center space-y-5">
+        <div className="w-16 h-16 rounded-2xl bg-neutral-100 text-neutral-800 flex items-center justify-center mx-auto shadow-xs">
+          <User className="w-8 h-8 text-neutral-800" />
         </div>
-        <h2 className="text-xl font-bold text-neutral-900">Citizen Sign-In Required</h2>
-        <p className="text-sm text-neutral-600 max-w-md mx-auto">
-          Please sign in with Google or your verified mobile number to view your reported grievances, track municipal SLA timelines, and confirm problem resolutions.
-        </p>
+        <div>
+          <h2 className="text-xl font-bold text-neutral-900">Citizen Sign-In Required</h2>
+          <p className="text-sm text-neutral-600 max-w-md mx-auto mt-1.5">
+            Please sign in with Google, verified mobile OTP, or direct 1-click role access to view your reported grievances, track municipal SLA timelines, and confirm problem resolutions.
+          </p>
+        </div>
+        {onOpenLoginModal && (
+          <div className="pt-2">
+            <button
+              onClick={onOpenLoginModal}
+              className="inline-flex items-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold px-5 py-2.5 rounded-xl transition shadow-xs"
+            >
+              <User className="w-4 h-4 text-emerald-400" />
+              <span>Sign In with Verified Identity</span>
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -72,7 +92,21 @@ export const CitizenDashboard: React.FC<CitizenDashboardProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {getOfflineQueuedReports().length > 0 && (
+            <button
+              onClick={() => {
+                syncOfflineReports();
+                alert('Synced all queued offline reports to municipal server!');
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-neutral-950 font-bold text-xs rounded-xl transition shadow-xs"
+              title="Sync pending offline drafts"
+            >
+              <Wifi className="w-3.5 h-3.5" />
+              <span>Sync {getOfflineQueuedReports().length} Offline Draft(s)</span>
+            </button>
+          )}
+
           <button
             onClick={onOpenReportModal}
             className="flex items-center gap-2 px-5 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white font-semibold text-xs rounded-xl transition shadow-xs"
@@ -173,6 +207,18 @@ export const CitizenDashboard: React.FC<CitizenDashboardProps> = ({
                       <span className="text-xs font-semibold text-neutral-500">
                         {c.category}
                       </span>
+                      {c.masterIncidentCluster?.isMasterIncident && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
+                          <Users className="w-3 h-3 text-amber-700" />
+                          <span>Master Incident ({c.masterIncidentCluster.coSignersCount} Co-Signers)</span>
+                        </span>
+                      )}
+                      {c.resolution?.contractorTransparency && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200 flex items-center gap-1">
+                          <Award className="w-3 h-3 text-teal-600" />
+                          <span>18m Warranty Active</span>
+                        </span>
+                      )}
                     </div>
 
                     <h3 className="text-base font-bold text-neutral-900 group-hover:text-emerald-700 transition">

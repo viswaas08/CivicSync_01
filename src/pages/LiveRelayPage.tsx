@@ -15,6 +15,8 @@ import {
   Sparkles
 } from 'lucide-react';
 
+import { HierarchicalJurisdictionFilter, JurisdictionFilterValue } from '../components/HierarchicalJurisdictionFilter';
+
 interface LiveRelayPageProps {
   onSelectComplaint: (complaint: Complaint) => void;
   onOpenReportModal: () => void;
@@ -23,6 +25,11 @@ interface LiveRelayPageProps {
 export const LiveRelayPage: React.FC<LiveRelayPageProps> = ({ onSelectComplaint, onOpenReportModal }) => {
   const { auditEvents, complaints, selectedCountryId } = useCivic();
 
+  const [jurisdictionFilter, setJurisdictionFilter] = useState<JurisdictionFilterValue>({
+    stateId: 'ALL',
+    ulbId: 'ALL',
+    wardNumber: 'ALL'
+  });
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -38,6 +45,18 @@ export const LiveRelayPage: React.FC<LiveRelayPageProps> = ({ onSelectComplaint,
       return false;
     }
 
+    // Hierarchical Jurisdiction Filtering
+    const snap = complaint.locationSnapshot;
+    if (jurisdictionFilter.stateId !== 'ALL' && snap?.stateId !== jurisdictionFilter.stateId) {
+      return false;
+    }
+    if (jurisdictionFilter.ulbId !== 'ALL' && snap?.localBodyId !== jurisdictionFilter.ulbId) {
+      return false;
+    }
+    if (jurisdictionFilter.wardNumber !== 'ALL' && snap?.wardNumber !== jurisdictionFilter.wardNumber) {
+      return false;
+    }
+
     if (categoryFilter !== 'ALL' && !complaint.category.toLowerCase().includes(categoryFilter.toLowerCase())) {
       return false;
     }
@@ -49,7 +68,7 @@ export const LiveRelayPage: React.FC<LiveRelayPageProps> = ({ onSelectComplaint,
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const matchTitle = complaint.title.toLowerCase().includes(q);
-      const matchWard = complaint.locationSnapshot.wardName?.toLowerCase().includes(q);
+      const matchWard = complaint.locationSnapshot?.wardName?.toLowerCase().includes(q);
       const matchId = evt.complaintId.toLowerCase().includes(q);
       const matchNotes = evt.notes?.toLowerCase().includes(q);
       if (!matchTitle && !matchWard && !matchId && !matchNotes) return false;
@@ -90,6 +109,13 @@ export const LiveRelayPage: React.FC<LiveRelayPageProps> = ({ onSelectComplaint,
           </button>
         </div>
       </div>
+
+      {/* Hierarchical State, City & Ward Filter with Instant Count & SLA Badges */}
+      <HierarchicalJurisdictionFilter 
+        value={jurisdictionFilter}
+        onChange={setJurisdictionFilter}
+        complaints={complaints}
+      />
 
       {/* Filter Toolbar */}
       <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-xs flex flex-wrap items-center justify-between gap-4 text-xs">

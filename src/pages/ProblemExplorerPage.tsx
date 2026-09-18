@@ -18,6 +18,8 @@ import {
   PlusCircle
 } from 'lucide-react';
 
+import { HierarchicalJurisdictionFilter, JurisdictionFilterValue } from '../components/HierarchicalJurisdictionFilter';
+
 interface ProblemExplorerPageProps {
   onSelectComplaint: (complaint: Complaint) => void;
   onOpenReportModal: () => void;
@@ -29,6 +31,11 @@ export const ProblemExplorerPage: React.FC<ProblemExplorerPageProps> = ({
 }) => {
   const { complaints, gisWards, selectedCountryId } = useCivic();
 
+  const [jurisdictionFilter, setJurisdictionFilter] = useState<JurisdictionFilterValue>({
+    stateId: 'ALL',
+    ulbId: 'ALL',
+    wardNumber: 'ALL'
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('ALL');
   const [priorityFilter, setPriorityFilter] = useState('ALL');
@@ -37,6 +44,19 @@ export const ProblemExplorerPage: React.FC<ProblemExplorerPageProps> = ({
 
   const filteredComplaints = complaints.filter(c => {
     if (selectedCountryId !== 'ALL' && (c.countryId || c.locationSnapshot?.countryId || 'IN') !== selectedCountryId) return false;
+
+    // Hierarchical Jurisdiction Filtering
+    const snap = c.locationSnapshot;
+    if (jurisdictionFilter.stateId !== 'ALL' && snap?.stateId !== jurisdictionFilter.stateId) {
+      return false;
+    }
+    if (jurisdictionFilter.ulbId !== 'ALL' && snap?.localBodyId !== jurisdictionFilter.ulbId) {
+      return false;
+    }
+    if (jurisdictionFilter.wardNumber !== 'ALL' && snap?.wardNumber !== jurisdictionFilter.wardNumber) {
+      return false;
+    }
+
     if (departmentFilter !== 'ALL' && c.assignedDepartmentId !== departmentFilter) return false;
     if (priorityFilter !== 'ALL' && c.priorityLevel !== priorityFilter) return false;
     if (statusFilter !== 'ALL' && c.status !== statusFilter) return false;
@@ -44,7 +64,7 @@ export const ProblemExplorerPage: React.FC<ProblemExplorerPageProps> = ({
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const matchTitle = c.title.toLowerCase().includes(q);
-      const matchWard = c.locationSnapshot.wardName?.toLowerCase().includes(q);
+      const matchWard = c.locationSnapshot?.wardName?.toLowerCase().includes(q);
       const matchId = c.complaintId.toLowerCase().includes(q);
       const matchDesc = c.description.toLowerCase().includes(q);
       if (!matchTitle && !matchWard && !matchId && !matchDesc) return false;
@@ -93,6 +113,13 @@ export const ProblemExplorerPage: React.FC<ProblemExplorerPageProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Hierarchical Cascading State, City & Ward Filter with Live Badges */}
+      <HierarchicalJurisdictionFilter 
+        value={jurisdictionFilter}
+        onChange={setJurisdictionFilter}
+        complaints={complaints}
+      />
 
       {/* Filter Bar */}
       <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-xs space-y-3">

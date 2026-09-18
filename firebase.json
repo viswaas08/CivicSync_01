@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "civicsync-sih-1",
     "public": "dist",
     "ignore": [
       "firebase.json",

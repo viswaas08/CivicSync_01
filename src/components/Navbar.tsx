@@ -20,7 +20,8 @@ import {
   KeyRound,
   Globe,
   LogOut,
-  UserCheck
+  UserCheck,
+  ShieldAlert
 } from 'lucide-react';
 import { useCivic } from '../context/CivicContext';
 import { UserRole } from '../types';
@@ -140,6 +141,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             {t('problemExplorer')}
           </button>
+          <button
+            onClick={() => onNavigate('utility-coordination')}
+            className={`px-3 py-2 rounded-lg transition flex items-center gap-1.5 ${currentView === 'utility-coordination' ? 'text-neutral-900 bg-neutral-100 font-semibold' : 'hover:text-neutral-900 hover:bg-neutral-50'}`}
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+            <span>Utility Digging NOC</span>
+            <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded">180d</span>
+          </button>
           
           {/* Demo Mode: Actor Persona Switcher */}
           {!isProductionMode && (
@@ -249,7 +258,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="relative">
             <button
               id="btn-language-selector"
-              onClick={() => { setShowLanguageMenu(!showLanguageMenu); setShowRoleMenu(false); setShowQuickDemoMenu(false); }}
+              onClick={() => { setShowLanguageMenu(!showLanguageMenu); setShowRoleMenu(false); }}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-xs font-medium text-neutral-800 transition"
               title="Select Indian Language"
             >
@@ -310,7 +319,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="relative">
               <button
                 id="btn-user-profile-menu"
-                onClick={() => { setShowRoleMenu(!showRoleMenu); setShowLanguageMenu(false); setShowQuickDemoMenu(false); }}
+                onClick={() => { setShowRoleMenu(!showRoleMenu); setShowLanguageMenu(false); }}
                 className="flex items-center gap-2 p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg border border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 transition"
               >
                 {currentUser.avatarUrl ? (

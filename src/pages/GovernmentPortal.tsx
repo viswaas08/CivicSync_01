@@ -20,9 +20,10 @@ import {
 
 interface GovernmentPortalProps {
   onSelectComplaint: (complaint: Complaint) => void;
+  onOpenLoginModal?: () => void;
 }
 
-export const GovernmentPortal: React.FC<GovernmentPortalProps> = ({ onSelectComplaint }) => {
+export const GovernmentPortal: React.FC<GovernmentPortalProps> = ({ onSelectComplaint, onOpenLoginModal }) => {
   const { currentUser, isProductionMode, switchRole, complaints, updateComplaintStatus } = useCivic();
 
   const [slaFilter, setSlaFilter] = useState<'ALL' | 'BREACHED' | 'URGENT' | 'IN_PROGRESS'>('ALL');
@@ -40,14 +41,27 @@ export const GovernmentPortal: React.FC<GovernmentPortalProps> = ({ onSelectComp
 
   if (isProductionMode && !isAuthorizedOfficial) {
     return (
-      <div className="max-w-2xl mx-auto my-16 p-8 bg-white border border-neutral-200 rounded-2xl shadow-sm text-center space-y-4">
-        <div className="w-16 h-16 rounded-2xl bg-purple-100 text-purple-800 flex items-center justify-center mx-auto">
-          <Building2 className="w-8 h-8" />
+      <div className="max-w-2xl mx-auto my-16 p-8 bg-white border border-neutral-200 rounded-2xl shadow-sm text-center space-y-5">
+        <div className="w-16 h-16 rounded-2xl bg-purple-100 text-purple-800 flex items-center justify-center mx-auto shadow-xs">
+          <Building2 className="w-8 h-8 text-purple-700" />
         </div>
-        <h2 className="text-xl font-bold text-neutral-900">Official Municipal Portal Access Restricted</h2>
-        <p className="text-sm text-neutral-600 max-w-md mx-auto">
-          This portal is reserved strictly for gazetted municipal field engineers, zonal supervisors, and department heads. Please sign in with your verified official credentials to access municipal SLA queues and work orders.
-        </p>
+        <div>
+          <h2 className="text-xl font-bold text-neutral-900">Official Municipal Portal Access Restricted</h2>
+          <p className="text-sm text-neutral-600 max-w-md mx-auto mt-1.5">
+            This portal is reserved strictly for gazetted municipal field engineers, zonal supervisors, and department heads. Please sign in with your verified official credentials or 1-click role access to inspect municipal SLA queues and work orders.
+          </p>
+        </div>
+        {onOpenLoginModal && (
+          <div className="pt-2">
+            <button
+              onClick={onOpenLoginModal}
+              className="inline-flex items-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold px-5 py-2.5 rounded-xl transition shadow-xs"
+            >
+              <Building2 className="w-4 h-4 text-purple-400" />
+              <span>Sign In with Municipal Officer Account</span>
+            </button>
+          </div>
+        )}
       </div>
     );
   }

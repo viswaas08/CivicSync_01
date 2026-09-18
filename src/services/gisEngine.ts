@@ -1,4 +1,25 @@
 import { GISWardBoundary, GISLocationSnapshot, GISCoverageReport } from '../types';
+import { 
+  findUlbByCoordinates, 
+  getAllIndianStates, 
+  getIndianStateById, 
+  getAllUlbs, 
+  getUlbsByState, 
+  getUlbById, 
+  getWardsForUlb,
+  NATIONWIDE_INDIAN_STATES 
+} from './nationwideGisRegistry';
+
+export { 
+  findUlbByCoordinates, 
+  getAllIndianStates, 
+  getIndianStateById, 
+  getAllUlbs, 
+  getUlbsByState, 
+  getUlbById, 
+  getWardsForUlb,
+  NATIONWIDE_INDIAN_STATES 
+};
 
 /**
  * CivicSync National GIS Engine
@@ -825,8 +846,45 @@ export function resolveLocationFromGIS(
     };
   }
 
-  // General India
+  // General India - Query Nationwide ULB Registry
   if (latitude >= 8.0 && latitude <= 37.0 && longitude >= 68.0 && longitude <= 97.0) {
+    const matchedUlb = findUlbByCoordinates(latitude, longitude);
+    if (matchedUlb) {
+      let nearestWard = matchedUlb.wards[0] || null;
+      let minWardDist = Infinity;
+      for (const w of matchedUlb.wards) {
+        const d = Math.hypot(latitude - w.centroid[0], longitude - w.centroid[1]);
+        if (d < minWardDist) {
+          minWardDist = d;
+          nearestWard = w;
+        }
+      }
+
+      return {
+        countryId: 'IN',
+        countryName: 'India',
+        stateId: matchedUlb.stateId,
+        stateName: matchedUlb.stateName,
+        districtId: matchedUlb.districtId,
+        districtName: matchedUlb.districtName,
+        localBodyId: matchedUlb.ulbId,
+        localBodyName: matchedUlb.ulbName,
+        localBodyType: matchedUlb.type,
+        wardId: nearestWard ? `${matchedUlb.ulbId}-W${nearestWard.wardNumber}` : null,
+        wardNumber: nearestWard ? nearestWard.wardNumber : null,
+        wardName: nearestWard ? nearestWard.wardName : null,
+        boundaryVersion: matchedUlb.boundaryVersionId,
+        addressText: `${nearestWard ? nearestWard.wardName + ', ' : ''}${matchedUlb.ulbName}, ${matchedUlb.stateName} (Coordinates: ${latitude.toFixed(4)}, ${longitude.toFixed(4)})`,
+        locationStatus: nearestWard ? 'RESOLVED' : 'PARTIAL',
+        resolvedAt: now,
+        administrativeAreas: [
+          { levelCode: 'STATE', levelName: 'State', boundaryId: `IN-${matchedUlb.stateId}`, name: matchedUlb.stateName },
+          { levelCode: 'DISTRICT', levelName: 'District', boundaryId: `IN-${matchedUlb.stateId}-${matchedUlb.districtId}`, name: matchedUlb.districtName },
+          { levelCode: 'LOCAL_BODY', levelName: 'Municipal Corporation', boundaryId: `IN-${matchedUlb.stateId}-${matchedUlb.districtId}-${matchedUlb.ulbId}`, name: matchedUlb.ulbName }
+        ]
+      };
+    }
+
     return {
       countryId: 'IN',
       countryName: 'India',

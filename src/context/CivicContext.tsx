@@ -22,7 +22,7 @@ import {
 import { INITIAL_PUBLISHED_WARDS, INITIAL_COVERAGE_REPORTS } from '../services/gisEngine';
 import { requestSLAExtension, escalateComplaint } from '../services/slaEngine';
 import { getTranslation, TranslationKey } from '../services/i18n';
-import { auth, signOut as firebaseSignOut } from '../services/firebase';
+import { auth, signOut as firebaseSignOut, db, doc, setDoc } from '../services/firebase';
 
 export interface CivicContextType {
   currentUser: UserProfile;
@@ -65,6 +65,8 @@ export interface CivicContextType {
   reseedAllDemoData: () => void;
   resetDemoData: () => void;
   clearAllComplaints: () => void;
+  coSignMasterComplaint: (complaintId: string) => void;
+  syncOfflineReports: () => void;
 }
 
 const CivicContext = createContext<CivicContextType | undefined>(undefined);
@@ -409,6 +411,18 @@ export const CivicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('civicsync_authenticated', 'false');
   };
 
+  // Helper to persist documents to Firebase Firestore with safety fallback
+  const persistToFirestore = async (colName: string, docId: string, data: any) => {
+    try {
+      if (db) {
+        const cleanPayload = JSON.parse(JSON.stringify(data));
+        await setDoc(doc(db, colName, docId), cleanPayload, { merge: true });
+      }
+    } catch (fsErr) {
+      console.warn(`Firestore sync note (${colName}/${docId}):`, fsErr);
+    }
+  };
+
   // Clear all complaints for clean slate
   const clearAllComplaints = () => {
     setComplaints([]);
@@ -433,6 +447,10 @@ export const CivicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     setAuditEvents(prev => [submitEvent, ...prev]);
+
+    // Persist grievance & audit event directly to Firebase Firestore
+    persistToFirestore('complaints', newComplaint.complaintId, newComplaint);
+    persistToFirestore('auditEvents', submitEvent.eventId, submitEvent);
 
     // Asynchronously synchronize with backend API and pass Bearer token
     fetch('/api/v1/complaints', {
@@ -502,6 +520,9 @@ export const CivicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       timestamp: new Date().toISOString()
     };
     setAuditEvents(prev => [event, ...prev]);
+
+    persistToFirestore('complaints', complaintId, { status: newStatus, updatedAt: new Date().toISOString() });
+    persistToFirestore('auditEvents', event.eventId, event);
   };
 
   const resolveComplaint = (complaintId: string, resolution: ResolutionData) => {
@@ -530,6 +551,9 @@ export const CivicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       timestamp: new Date().toISOString()
     };
     setAuditEvents(prev => [event, ...prev]);
+
+    persistToFirestore('complaints', complaintId, { status: 'RESOLVED', resolution, updatedAt: new Date().toISOString() });
+    persistToFirestore('auditEvents', event.eventId, event);
   };
 
   const citizenReviewResolution = (
@@ -574,19 +598,29 @@ export const CivicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       timestamp: new Date().toISOString()
     };
     setAuditEvents(prev => [event, ...prev]);
+
+    persistToFirestore('complaints', complaintId, { 
+      status: finalStatus, 
+      resolutionReview: { action, rating, feedback, appealReason }, 
+      updatedAt: new Date().toISOString() 
+    });
+    persistToFirestore('auditEvents', event.eventId, event);
   };
 
   const supportComplaint = (complaintId: string) => {
+    let updatedComplaint: Complaint | null = null;
     setComplaints(prev => prev.map(c => {
       if (c.complaintId === complaintId) {
         const supported = c.supportedByCitizenIds || [];
         if (!supported.includes(currentUser.uid)) {
-          return {
+          const mod = {
             ...c,
             supportersCount: (c.supportersCount || 0) + 1,
             supportedByCitizenIds: [...supported, currentUser.uid],
             priorityScore: Math.min(100, c.priorityScore + 2)
           };
+          updatedComplaint = mod;
+          return mod;
         }
       }
       return c;
@@ -603,12 +637,23 @@ export const CivicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       timestamp: new Date().toISOString()
     };
     setAuditEvents(prev => [event, ...prev]);
+
+    if (updatedComplaint) {
+      persistToFirestore('complaints', complaintId, { 
+        supportersCount: (updatedComplaint as Complaint).supportersCount,
+        supportedByCitizenIds: (updatedComplaint as Complaint).supportedByCitizenIds,
+        priorityScore: (updatedComplaint as Complaint).priorityScore
+      });
+    }
+    persistToFirestore('auditEvents', event.eventId, event);
   };
 
   const requestExtensionForComplaint = (complaintId: string, hours: number, reason: string) => {
+    let updatedSlaData: any = null;
     setComplaints(prev => prev.map(c => {
       if (c.complaintId === complaintId) {
         const updatedSla = requestSLAExtension(c.sla, hours, reason, currentUser.displayName);
+        updatedSlaData = updatedSla;
         return {
           ...c,
           sla: updatedSla,
@@ -629,19 +674,27 @@ export const CivicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       timestamp: new Date().toISOString()
     };
     setAuditEvents(prev => [event, ...prev]);
+
+    if (updatedSlaData) {
+      persistToFirestore('complaints', complaintId, { sla: updatedSlaData, updatedAt: new Date().toISOString() });
+    }
+    persistToFirestore('auditEvents', event.eventId, event);
   };
 
   const escalateComplaintSla = (complaintId: string) => {
+    let updatedEscalatedData: any = null;
     setComplaints(prev => prev.map(c => {
       if (c.complaintId === complaintId) {
         const escalatedSla = escalateComplaint(c.sla);
-        return {
+        const mod = {
           ...c,
           sla: escalatedSla,
-          status: 'ESCALATED',
+          status: 'ESCALATED' as ComplaintStatus,
           priorityScore: Math.min(100, c.priorityScore + 15),
           updatedAt: new Date().toISOString()
         };
+        updatedEscalatedData = mod;
+        return mod;
       }
       return c;
     }));
@@ -657,6 +710,94 @@ export const CivicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       timestamp: new Date().toISOString()
     };
     setAuditEvents(prev => [event, ...prev]);
+
+    if (updatedEscalatedData) {
+      persistToFirestore('complaints', complaintId, { 
+        sla: updatedEscalatedData.sla, 
+        status: 'ESCALATED', 
+        priorityScore: updatedEscalatedData.priorityScore,
+        updatedAt: new Date().toISOString() 
+      });
+    }
+    persistToFirestore('auditEvents', event.eventId, event);
+  };
+
+  const coSignMasterComplaint = (complaintId: string) => {
+    let targetComplaint: Complaint | null = null;
+    setComplaints(prev => prev.map(c => {
+      if (c.complaintId === complaintId) {
+        const currentCluster = c.masterIncidentCluster || {
+          isMasterIncident: true,
+          coSignersCount: 0,
+          coSigners: [],
+          clusterRadiusMeters: 350
+        };
+
+        const alreadyCoSigned = currentCluster.coSigners.some(s => s.citizenId === currentUser.uid);
+        if (alreadyCoSigned) return c;
+
+        const newCoSigner = {
+          citizenId: currentUser.uid,
+          citizenNameMasked: `${(currentUser.displayName || 'Citizen').charAt(0)}***`,
+          coSignedAt: new Date().toISOString(),
+          wardName: c.locationSnapshot?.wardName || 'Ward'
+        };
+
+        const updatedCoSigners = [...currentCluster.coSigners, newCoSigner];
+        const updated = {
+          ...c,
+          masterIncidentCluster: {
+            ...currentCluster,
+            isMasterIncident: true,
+            coSignersCount: updatedCoSigners.length,
+            coSigners: updatedCoSigners,
+            incidentTitle: `Master Incident: ${c.title} — ${updatedCoSigners.length} Citizen Co-Signers`
+          },
+          supportersCount: (c.supportersCount || 0) + 1,
+          supportedByCitizenIds: [...(c.supportedByCitizenIds || []), currentUser.uid],
+          priorityScore: Math.min(100, c.priorityScore + 5),
+          updatedAt: new Date().toISOString()
+        };
+        targetComplaint = updated;
+        return updated;
+      }
+      return c;
+    }));
+
+    const event: ComplaintEvent = {
+      eventId: `EVT-${Date.now()}-COSIGN`,
+      complaintId,
+      actorId: currentUser.uid,
+      actorName: currentUser.displayName,
+      actorRole: 'citizen',
+      action: 'MASTER_INCIDENT_COSIGNED',
+      notes: `Citizen co-signed Master Incident #${complaintId}. Municipal SLA escalated.`,
+      timestamp: new Date().toISOString()
+    };
+    setAuditEvents(prev => [event, ...prev]);
+
+    if (targetComplaint) {
+      persistToFirestore('complaints', complaintId, targetComplaint);
+      persistToFirestore('auditEvents', event.eventId, event);
+    }
+  };
+
+  const syncOfflineReports = () => {
+    const raw = localStorage.getItem('civicsync_offline_queue');
+    if (!raw) return;
+    try {
+      const queue = JSON.parse(raw);
+      if (Array.isArray(queue) && queue.length > 0) {
+        queue.forEach((item: any) => {
+          if (item.complaintData && item.status === 'PENDING_NETWORK') {
+            submitComplaint(item.complaintData as Complaint);
+          }
+        });
+        localStorage.removeItem('civicsync_offline_queue');
+      }
+    } catch (e) {
+      console.error('Failed to sync offline reports:', e);
+    }
   };
 
   const acceptOpportunity = (oppId: string, orgName: string) => {
@@ -839,7 +980,9 @@ export const CivicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       removeAllDemoData,
       reseedAllDemoData,
       resetDemoData,
-      clearAllComplaints
+      clearAllComplaints,
+      coSignMasterComplaint,
+      syncOfflineReports
     }}>
       {children}
     </CivicContext.Provider>
